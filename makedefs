@@ -1,0 +1,15 @@
+PART = PART_TM4C123GH6PM
+TARGET = TARGET_IS_TM4C123_RB1
+SRCROOT = /home/dscao/works/embedded/mrtos/src
+COPTIONS = -mthumb -march=armv7-m -mtune=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
+	 -Wall -pedantic -ffreestanding -O2 -mno-unaligned-access
+#	 -Wall -pedantic -ffreestanding -O2 -mno-unaligned-access -ffunction-sections -fdata-sections
+CPPFLAGS = -I$(SRCROOT)/arch/arm/tm4c123gh6pm/include \
+	-I$(SRCROOT)/arch/arm/cpu-cm4f/include \
+	-I$(SRCROOT)/utils/include \
+	-I$(SRCROOT)/include -D$(PART) -D$(TARGET)
+
+CFLAGS = $(COPTIONS) $(CPPFLAGS)
+
+CC = arm-elf-linux-gnueabi-gcc
+LINK.o = arm-elf-linux-gnueabi-ld
