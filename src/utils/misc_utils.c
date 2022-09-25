@@ -193,38 +193,6 @@ int snprintf(char *buf, const int buflen, const char *fmt, ...)
 	return len;
 }
 
-void memcpy(char *dst, const char *src, int len)
-{
-	const char *curchr;
-
-	for (curchr = src; curchr < src + len; curchr++, dst++)
-		*dst = *curchr;
-}
-
-int memchr(const char *msg, int len, char c)
-{
-	int idx;
-
-	if (len <= 0)
-		return -1;
-	idx = 0;
-	do {
-		if (msg[idx] == c)
-			return idx;
-		idx += 1;
-	} while (idx < len);
-	return -1;
-}
-
-void memset(char *dst, int val, int len)
-{
-	char *curchr;
-
-	curchr = dst;
-	while (curchr < dst + len)
-		*curchr++ = val;
-}
-
 int memcmp(const char *op1, const char *op2, int len)
 {
 	int retv;

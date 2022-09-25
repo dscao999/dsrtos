@@ -52,9 +52,43 @@ static inline void cirbuf_put(struct CirBuf256 *cbuf, uint8_t val)
 
 int snprintf(char *buf, int buflen, const char *fmt, ...);
 int vsnprintf(char *buf, int buflen, const char *fmt, va_list args);
-void memcpy(char *dst, const char *src, int len);
-int memchr(const char *msg, int len, char c);
+
+static inline void memcpy(char *dst, const char *src, int len)
+{
+        const char *curchr;
+
+	if (len <= 0)
+		return;
+        for (curchr = src; curchr < src + len; curchr++, dst++)
+                *dst = *curchr;
+}
+
+static inline int memchr(const char *msg, int len, char c)
+{
+        int idx;
+
+        if (len <= 0)
+                return -1;
+        idx = 0;
+        do {
+                if (msg[idx] == c)
+                        return idx;
+                idx += 1;
+        } while (idx < len);
+        return -1;
+}
+
 int memcmp(const char *op1, const char *op2, int len);
-void memset(char *dst, int val, int len);
+
+static inline void memset(char *dst, int val, int len)
+{
+        char *curchr;
+
+	if (len <= 0)
+		return;
+        curchr = dst;
+        while (curchr < dst + len)
+                *curchr++ = val;
+}
 
 #endif  /* MISC_UTILS_DSCAO__ */
