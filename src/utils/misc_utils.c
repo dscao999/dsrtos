@@ -87,6 +87,11 @@ static int int2hex(char *buf, int buflen, unsigned int num)
 
 	if (buflen <= 0)
 		return pos;
+	if (num == 0) {
+		buf[pos++] = '0';
+		return pos;
+	}
+
 	while (num != 0) {
 		digit = num & 0x0f;
 		if (digit > 9)
