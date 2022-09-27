@@ -27,7 +27,7 @@ static void SysTick_Handler(void);
 // The entry point for the application.
 //
 //*****************************************************************************
-extern void main(void);
+extern void kernel_start(void);
 
 extern void (* __SRAM_END[])(void);
 //*****************************************************************************
@@ -170,7 +170,7 @@ static void __attribute__((noreturn, naked)) Reset_Handler(void)
 	scbv |= NVIC_ST_CTRL_CLK_SRC|NVIC_ST_CTRL_INTEN|NVIC_ST_CTRL_ENABLE;
 	*scbreg = scbv;
 
-	main();
+	kernel_start();
 	while (1)
 		;
 }

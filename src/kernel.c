@@ -3,6 +3,12 @@
 #include "board_def.h"
 #include "kernel.h"
 
+struct proc_stack {
+        uint32_t stack[512];
+};
+__attribute__ ((section(".proc_stacks"), used)) struct proc_stack pstacks[8];
+__attribute__ ((section(".main_stack"), used)) uint32_t main_stack[256];
+
 uint64_t __attribute__((leaf)) current_ticks(void)
 {
         union {

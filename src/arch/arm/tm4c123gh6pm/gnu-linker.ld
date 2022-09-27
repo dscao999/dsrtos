@@ -60,9 +60,11 @@ SECTIONS
 		__bss_end = .;
 	} > SRAM
 
-	.udma_table (NOLOAD) :
+	.os_tables (NOLOAD) :
 	{
-		. = ORIGIN(SRAM) + LENGTH(SRAM) - 3072;
+		. = ORIGIN(SRAM) + LENGTH(SRAM) - 2048 - 8 * 2048;
+		KEEP(kernel.o(.proc_stacks))
 		KEEP(board_init.o(.udma_table))
+		KEEP(kernel.o(.main_stack))
 	} > SRAM
 }

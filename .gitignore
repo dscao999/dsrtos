@@ -35,6 +35,7 @@
 *.i*86
 *.x86_64
 *.hex
+*.bin
 
 # Debug files
 *.dSYM/
@@ -42,6 +43,8 @@
 *.idb
 *.pdb
 
+cscope.*
+#
 # Kernel Module Compile Results
 *.mod*
 *.cmd
@@ -51,6 +54,4 @@ Module.symvers
 Mkfile.old
 dkms.conf
 #
-*.bin
 blink
-cscope.*

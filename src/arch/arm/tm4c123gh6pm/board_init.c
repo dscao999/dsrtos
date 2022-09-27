@@ -33,7 +33,7 @@ struct CirBuf256 * const uart0_buf = &uart0_buffer;
 
 
 __attribute__((section(".udma_table")))
-struct DMATable udma_table[32];
+struct DMATable udma_table[64];
 //*****************************************************************************
 //
 // The vector table.  Note that the proper constructs must be placed on this to
