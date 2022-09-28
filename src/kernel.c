@@ -1,13 +1,11 @@
 #include <stdint.h>
 #include "misc_utils.h"
+#include "kernel_internal.h"
 #include "board_def.h"
 #include "kernel.h"
 
-struct proc_stack {
-        uint32_t stack[512];
-};
-__attribute__ ((section(".proc_stacks"), used)) struct proc_stack pstacks[8];
-__attribute__ ((section(".main_stack"), used)) uint32_t main_stack[256];
+__attribute__ ((section(".proc_stacks"))) struct proc_stack pstacks[MAX_NUM_TASKS];
+__attribute__ ((section(".main_stack"))) uint32_t main_stack[MAX_MSTACK_SIZE];
 
 uint64_t __attribute__((leaf)) current_ticks(void)
 {

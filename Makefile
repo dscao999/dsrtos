@@ -11,7 +11,7 @@ vpath %.c src/arch/arm/tm4c123gh6pm
 vpath %.c src/utils
 vpath %.c src
 
-srcs = startup.c board_init.c board_imp.c main.c misc_utils.c armv7m_utils.c kernel.c
+srcs = startup.c board_init.c board_imp.c start.c misc_utils.c armv7m_utils.c kernel.c main.c
 obj = $(subst .c,.o,$(srcs))
 
 all: blink
