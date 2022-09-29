@@ -29,6 +29,10 @@ void main(void)
 						:"=r"(ctl)::"r2");
 				klog("Control Reg: %x\n", ctl);
 				break;
+			case '2':
+				asm volatile ("mov	%0,sp\n":"=r"(ctl));
+				klog("Current SP: %x\n", ctl);
+				break;
 			default:
 				klog("current ticks: %u\n", osticks->tick_low);
 				break;
