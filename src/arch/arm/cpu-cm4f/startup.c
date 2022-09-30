@@ -17,9 +17,9 @@ void HardFault_Handler(void);
 void MemManage_Handler(void);
 void BusFault_Handler(void);
 void UsageFault_Handler(void);
-void __attribute__((weak)) SVC_Handler(void);
+void __attribute__((naked, weak)) SVC_Handler(void);
 void __attribute__((weak)) DebugMon_Handler(void);
-void __attribute__((weak)) PendSVC_Handler(void);
+void __attribute__((naked, weak)) PendSVC_Handler(void);
 static void SysTick_Handler(void);
 
 //*****************************************************************************
