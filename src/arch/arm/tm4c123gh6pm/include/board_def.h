@@ -18,7 +18,7 @@ extern struct CirBuf256 * const uart0_buf;
 
 void led_light(int led, int onoff);
 void led_mark(void);
-void error_flash(void);
+void dead_flash(int msecs);
 
 int console_getstr(char *buf, int buflen);
 int console_putstr(const char *buf, int len);

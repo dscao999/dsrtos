@@ -16,16 +16,12 @@ typedef void (*init_func_t)(void);
 extern init_func_t __init_start[];
 extern init_func_t __init_end[];
 
-static void task_idle(void)
-{
-	main();
-}
+void idle_task(void);
 
-void kernel_start(void)
+void __attribute__((naked)) kernel_start(void)
 {
 	init_func_t init_f, *func;
 	char *mstack, *pstack;
-	void *frame;
 	struct Task_Info *task;
 
 	func =  __init_start;
@@ -38,22 +34,60 @@ void kernel_start(void)
 	pstack = (char *)(pstacks + MAX_NUM_TASKS);
 	task_slot_init();
 
-	frame = pstack - sizeof(struct Intr_Context);
-	intr_context_setup(frame, task_idle);
-	frame = ((char *)frame) - sizeof(struct Reg_Context);
-	reg_context_setup(frame);
-	task = (struct Task_Info *)(((uint32_t)frame) & PSTACK_MASK);
-	if ((void *)task != (void *)(pstacks + MAX_NUM_TASKS - 1)) {
-		errno = 123;
-		error_flash();
-	}
+	task = (struct Task_Info *)(((uint32_t)(pstack - 1)) & PSTACK_MASK);
+	if ((void *)task != (void *)(pstacks + MAX_NUM_TASKS - 1))
+		dead_flash(100);
 
-	task->stat = READY;
-	task->psp = frame;
-	task->bpri = TASK_PRIO_MAXNUM;
-	task->cpri = TASK_PRIO_MAXNUM;
-
+	klog("Before stack switch\n");
+	task->stat = RUN;
 	switch_stack(mstack, pstack);
 	/* old stack switched, no local variable usable */
+	asm volatile (  "mov r0, #0\n"	\
+			"\tsvc #0\n");
 	main();
+
+	asm volatile (  "mov r0, #0\n"	\
+			"\tsvc #0\n");
+	idle_task();
+}
+
+
+static char conin[256];
+void idle_task(void)
+{
+	int msgpos;
+	uint32_t ctl;
+
+	klog("Idle Task Entered\n");
+	msgpos = 0;
+	do {
+		if (errno) {
+		}
+		if (msgpos >= sizeof(conin) - 1)
+			msgpos = 0;
+		msgpos += console_getstr(conin+msgpos, sizeof(conin) - msgpos);
+		if (msgpos == 0 || memchr(conin, msgpos, '\r') == -1)
+			continue;
+		switch(conin[0]) {
+			case '0':
+				asm volatile ("mrs	%0, control\n":"=r"(ctl));
+				klog("Control Reg: %x\n", ctl);
+				break;
+			case '1':
+				asm volatile ("ldr	r2, =0xE000ED14\n"	\
+						"ldr	%0, [r2]\n"	\
+						:"=r"(ctl)::"r2");
+				klog("Control Reg: %x\n", ctl);
+				break;
+			case '2':
+				asm volatile ("mov	%0,sp\n":"=r"(ctl));
+				klog("Current SP: %x\n", ctl);
+				break;
+			default:
+				klog("current ticks: %u\n", osticks->tick_low);
+				break;
+		}
+		msgpos = 0;
+	} while (errno == 0);
+	dead_flash(100);
 }

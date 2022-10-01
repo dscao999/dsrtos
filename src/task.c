@@ -13,8 +13,8 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		task->stat = NONE;
-		task->bpri = TASK_PRIO_MAXNUM;
-		task->cpri = TASK_PRIO_MAXNUM;
+		task->bpri = TASK_PRIO_MAXLOW;
+		task->cpri = TASK_PRIO_MAXLOW;
 	}
 }
 
@@ -27,7 +27,7 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 	mask = MAX_NUM_TASKS - 1;
 	candidate = 0;
 	curseq = -1;
-	pri = TASK_PRIO_MAXNUM;
+	pri = TASK_PRIO_MAXLOW;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		if (task->stat != READY && task->stat != RUN)
@@ -73,7 +73,8 @@ void __attribute__((naked)) SVC_Handler(void)
 	if (cur == nxt)
 		goto exit_10;
 
-	cur->stat = READY;
+	if (cur->stat == RUN)
+		cur->stat = READY;
 	cur_frame = getpsp();
 	cur_frame = cur_frame - 1;
 	*cur_frame = *frame;

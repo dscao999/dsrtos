@@ -15,11 +15,11 @@ srcs = startup.c board_init.c board_imp.c start.c misc_utils.c armv7m_utils.c ke
        task.c
 obj = $(subst .c,.o,$(srcs))
 
-all: blink
+all: blink blink.bin
 
 clean:
 	rm -f *.o
-	rm -f blink
+	rm -f blink blink.bin
 
 blink: $(obj)
 	$(LINK.o) -T $(BOARD)/gnu-linker.ld $(obj) -o $@

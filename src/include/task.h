@@ -4,7 +4,7 @@
 
 enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
 
-#define TASK_PRIO_MAXNUM	255
+#define TASK_PRIO_MAXLOW	255
 
 #define NO_TASK_READY	1 /* no task in ready/run state */
 

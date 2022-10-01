@@ -49,15 +49,22 @@ void led_light(int led, int onoff)
 	MAP_GPIOPinWrite(GPIO_PORTF_BASE, pinnum, onv);
 }
 
-void error_flash(void)
+void dead_flash(int msecs)
 {
+	int led, pin;
+
+	led = 0;
+	if (errno != 0)
+		msecs = 100;
 	MAP_GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, 0);
 	do {
-		MAP_GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, GPIO_PIN_3);
-		mdelay(100);
-		MAP_GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, 0);
-		mdelay(100);
-	} while (errno != 0);
+		pin = (led % 3) + 1;
+		MAP_GPIOPinWrite(GPIO_PORTF_BASE, pin, pin);
+		mdelay(msecs);
+		MAP_GPIOPinWrite(GPIO_PORTF_BASE, pin, 0);
+		mdelay(msecs);
+		led += 1;
+	} while (1);
 }
 
 int console_getstr(char *buf, int buflen)
