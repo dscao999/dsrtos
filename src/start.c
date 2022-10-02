@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <hw_nvic.h>
 #include "misc_utils.h"
 #include "armv7m_utils.h"
 #include "kernel_internal.h"
@@ -51,12 +52,28 @@ void __attribute__((naked)) kernel_start(void)
 	idle_task();
 }
 
+static inline int exception_priority(int expnum)
+{
+	volatile uint32_t *sysint_pri;
+	int idx, bitpos;
+	uint32_t prival;
+
+	if (expnum < 1 || expnum > 15)
+		return -4;
+	else if (expnum >=1 && expnum <= 3)
+		return -4 + expnum;
+	idx = expnum - 4;
+	bitpos = idx % 4;
+	sysint_pri = (volatile uint32_t *)(NVIC_SYS_PRI1 + (idx / 4) * 4);
+	prival = *sysint_pri;
+	return ((prival >> (bitpos*8)) & 0x0ff) >> 5;
+}
 
 static char conin[256];
 void idle_task(void)
 {
-	int msgpos;
-	uint32_t ctl;
+	int msgpos, expnum;
+	uint32_t ctl, val;
 
 	klog("Idle Task Entered\n");
 	msgpos = 0;
@@ -83,8 +100,18 @@ void idle_task(void)
 				asm volatile ("mov	%0,sp\n":"=r"(ctl));
 				klog("Current SP: %x\n", ctl);
 				break;
+			case '4': /* priority of exception 4 */
+				expnum = conin[0] - '0';
 			default:
-				klog("current ticks: %u\n", osticks->tick_low);
+				expnum = -1;
+				if (conin[0] >= '0' && conin[0] <= '9')
+					expnum = conin[0] - '0';
+				else if (conin[0] >= 'A' && conin[0] <= 'F')
+					expnum = conin[0] - 'A' + 10;
+				if (expnum < 4 || expnum > 15)
+					break;
+				val = exception_priority(expnum);
+				klog("Priority of exception %d: %u\n", expnum, val);
 				break;
 		}
 		msgpos = 0;

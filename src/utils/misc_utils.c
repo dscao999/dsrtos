@@ -105,8 +105,11 @@ static int int2hex(char *buf, int buflen, unsigned int num)
 	return pos;
 }
 
-static int print_one(char *buf, int buflen, const char mark, va_list args)
+int vsnprintf(char *buf, const int buflen, const char *fmt, va_list args)
 {
+	const char *pcfmt;
+	char c, mark;
+	int len, pos;
 	union {
 		uint64_t lnum;
 		struct {
@@ -117,69 +120,55 @@ static int print_one(char *buf, int buflen, const char mark, va_list args)
 		uint32_t unum;
 		char    *str;
 	} num;
-	int pos;
-
-	pos = 0;
-	if (buflen <= 0)
-		return pos;
-
-	switch(mark) {
-		case 'l':
-			num.lnum = va_arg(args, uint64_t);
-			pos = long2dec(buf, buflen, num.high, num.low);
-			break;
-		case 'd':
-			num.snum = va_arg(args, int);
-			pos = int2dec(buf, buflen, num.snum, 1);
-			break;
-		case 'u':
-			num.unum = va_arg(args, unsigned int);
-			pos = int2dec(buf, buflen, num.unum, 0);
-			break;
-		case 'x':
-		case 'X':
-			num.unum = va_arg(args, unsigned int);
-			pos = int2hex(buf, buflen, num.unum);
-			break;
-		case 's':
-			num.str = va_arg(args, char *);
-			while (*num.str)
-				buf[pos++] = *num.str++;
-			break;
-		default:
-			buf[pos++] = '?';
-			break;
-	}
-
-	return pos;
-}
-
-int vsnprintf(char *buf, const int buflen, const char *fmt, va_list args)
-{
-	const char *pcfmt;
-	char c;
-	int len;
 
 	len = 0;
 	pcfmt = fmt;
 	do {
 		c = *pcfmt++;
 		switch(c) {
-			case '\\':
-				c = *pcfmt++;
-				if (c == 'n')
-					c = '\n';
-				buf[len++] = c;
+		case '\\':
+			c = *pcfmt++;
+			if (c == 'n')
+				c = '\n';
+			buf[len++] = c;
+			break;
+		case '%':
+			mark = *pcfmt++;
+			pos = 0;
+			switch(mark) {
+			case 'l':
+				num.lnum = va_arg(args, uint64_t);
+				pos = long2dec(buf+len, buflen-len, num.high, num.low);
 				break;
-			case '%':
-				len += print_one(buf+len, buflen-len, *pcfmt++,
-						args);
+			case 'd':
+				num.snum = va_arg(args, int);
+				pos = int2dec(buf+len, buflen-len, num.snum, 1);
 				break;
-			case 0:
+			case 'u':
+				num.unum = va_arg(args, unsigned int);
+				pos = int2dec(buf+len, buflen-len, num.unum, 0);
+				break;
+			case 'x':
+			case 'X':
+				num.unum = va_arg(args, unsigned int);
+				pos = int2hex(buf+len, buflen-len, num.unum);
+				break;
+			case 's':
+				num.str = va_arg(args, char *);
+				while (*num.str)
+					buf[len+pos++] = *num.str++;
 				break;
 			default:
-				buf[len++] = c;
+				buf[pos++] = '?';
 				break;
+			}
+			len += pos;
+			break;
+		case 0:
+			break;
+		default:
+			buf[len++] = c;
+			break;
 		}
 	} while (len < buflen && c != 0);
 	return len;
