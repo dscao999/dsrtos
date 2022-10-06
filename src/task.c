@@ -40,9 +40,14 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 		} else if (task->cpri == pri)
 			candidate |= (1 << i);
 	}
+	i = 0;
 	sel = (curseq + 1) & mask;
-	while (sel != curseq && (candidate & (1 << sel)) == 0)
+	while ((candidate & (1 << sel)) == 0) {
 		sel = (sel + 1) & mask;
+		i += 1;
+		if (i > MAX_NUM_TASKS)
+			death_flash(100);
+	}
 	task = (struct Task_Info *)(pstacks + sel);
 	return task;
 }
