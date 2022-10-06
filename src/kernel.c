@@ -63,3 +63,20 @@ int klog(const char *fmt, ...)
 
 	return len;
 }
+
+void death_flash(int msecs)
+{
+	int led;
+
+	led = 0;
+	if (errno != 0)
+		msecs = 100;
+	led_off_all();
+	do {
+		led_light(led, 1);
+		mdelay(msecs);
+		led_light(led, 0);
+		mdelay(msecs);
+		led += 1;
+	} while (1);
+}

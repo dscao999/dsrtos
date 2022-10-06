@@ -37,7 +37,7 @@ void __attribute__((naked)) kernel_start(void)
 
 	task = (struct Task_Info *)(((uint32_t)(pstack - 1)) & PSTACK_MASK);
 	if ((void *)task != (void *)(pstacks + MAX_NUM_TASKS - 1))
-		dead_flash(100);
+		death_flash(100);
 
 	klog("Before stack switch\n");
 	task->stat = RUN;
@@ -116,5 +116,5 @@ void idle_task(void)
 		}
 		msgpos = 0;
 	} while (errno == 0);
-	dead_flash(100);
+	death_flash(100);
 }

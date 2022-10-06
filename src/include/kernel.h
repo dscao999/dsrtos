@@ -21,6 +21,7 @@ static inline uint32_t msec2tick(uint32_t msec)
 }
 
 void mdelay(uint32_t msec);
+void death_flash(int msecs);
 
 static inline void sched_yield(void)
 {

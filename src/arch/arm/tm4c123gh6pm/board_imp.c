@@ -36,24 +36,6 @@ void led_light(int led, int onoff)
 	MAP_GPIOPinWrite(GPIO_PORTF_BASE, pinnum, onv);
 }
 
-void dead_flash(int msecs)
-{
-	int led, pin;
-
-	led = 0;
-	if (errno != 0)
-		msecs = 100;
-	MAP_GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, 0);
-	do {
-		pin = (led % 3) + 1;
-		MAP_GPIOPinWrite(GPIO_PORTF_BASE, pin, pin);
-		mdelay(msecs);
-		MAP_GPIOPinWrite(GPIO_PORTF_BASE, pin, 0);
-		mdelay(msecs);
-		led += 1;
-	} while (1);
-}
-
 int console_getstr(char *buf, int buflen)
 {
 	uint8_t head, tail, val;
