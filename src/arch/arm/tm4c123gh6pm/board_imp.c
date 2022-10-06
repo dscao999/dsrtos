@@ -15,19 +15,6 @@
 #include "armv7m_utils.h"
 #include "misc_utils.h"
 
-void mdelay(uint32_t msec)
-{
-	int ticks, curtick, expired;
-
-	ticks = (int)msec2tick(msec);
-	curtick = (int)osticks->tick_low;
-	expired = curtick + ticks;
-	while (curtick < expired) {
-		asm volatile ("wfi");
-		curtick = (int)osticks->tick_low;
-	}
-}
-
 void led_light(int led, int onoff)
 {
 	uint8_t rgb, onv, pinnum;

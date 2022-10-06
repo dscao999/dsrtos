@@ -7,6 +7,19 @@
 __attribute__ ((section(".proc_stacks"))) struct proc_stack pstacks[MAX_NUM_TASKS];
 __attribute__ ((section(".main_stack"))) uint32_t main_stack[MAX_MSTACK_SIZE];
 
+void mdelay(uint32_t msec)
+{
+	int ticks, curtick, expired;
+
+	ticks = (int)msec2tick(msec);
+	curtick = (int)osticks->tick_low;
+	expired = curtick + ticks;
+	while (curtick < expired) {
+		asm volatile ("wfi");
+		curtick = (int)osticks->tick_low;
+	}
+}
+
 uint64_t __attribute__((leaf)) current_ticks(void)
 {
         union {
