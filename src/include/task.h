@@ -30,4 +30,6 @@ static inline struct Task_Info * current_task(void)
 
 void task_slot_init(void);
 
+int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *param);
+
 #endif  /* TASK_DSCAO__ */

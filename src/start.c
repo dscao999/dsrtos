@@ -47,8 +47,7 @@ void __attribute__((naked)) kernel_start(void)
 			"\tsvc #0\n");
 	main();
 
-	asm volatile (  "mov r0, #0\n"	\
-			"\tsvc #0\n");
+//	death_flash(80);
 	idle_task();
 }
 
@@ -78,8 +77,8 @@ void idle_task(void)
 	klog("Idle Task Entered\n");
 	msgpos = 0;
 	do {
-		if (errno) {
-		}
+		asm volatile (  "mov r0, #0\n"	\
+				"\tsvc #0\n");
 		if (msgpos >= sizeof(conin) - 1)
 			msgpos = 0;
 		msgpos += console_getstr(conin+msgpos, sizeof(conin) - msgpos);

@@ -10,7 +10,7 @@ struct Intr_Context {
 	uint32_t r3;
 	uint32_t r12;
 	uint32_t lr;
-	void (*retadr)(void);
+	void * (*retadr)(void *);
 	uint32_t xpsr;
 };
 
@@ -25,7 +25,7 @@ struct Reg_Context {
 	uint32_t r11;
 };
 
-static inline void intr_context_setup(void *frame, void (*retadr)(void))
+static inline void intr_context_setup(void *frame, void *(*retadr)(void *), void *param)
 {
 	struct Intr_Context *ctxt = frame;
 	uint32_t xpsr;
@@ -34,6 +34,7 @@ static inline void intr_context_setup(void *frame, void (*retadr)(void))
 	asm volatile ("mrs %0, xpsr\n":"=r"(xpsr));
 	ctxt->retadr = retadr;
 	ctxt->xpsr = xpsr;
+	ctxt->r0 = (uint32_t)param;
 }
 
 static inline void reg_context_setup(void *frame)

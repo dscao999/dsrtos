@@ -18,6 +18,34 @@ void task_slot_init(void)
 	}
 }
 
+int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *param)
+{
+	int i;
+	struct Task_Info *task;
+	void *frame;
+
+	*handle = (struct Task_Info *)0;
+	for (i = 0; i < MAX_NUM_TASKS; i++) {
+		task = (struct Task_Info *)(pstacks + i);
+		if (task->stat == NONE)
+			break;
+	}
+	if (i == MAX_NUM_TASKS) {
+		klog("Failed to create new task: Too Many Tasks\n");
+		return -1;
+	}
+	frame = ((char *)(pstacks + i + 1)) - sizeof(struct Intr_Context);
+	intr_context_setup(frame, task_entry, param);
+	frame = ((char *)frame) - sizeof(struct Reg_Context);
+	reg_context_setup(frame);
+	task->psp = frame;
+	task->bpri = TASK_PRIO_MAXLOW;
+	task->cpri = TASK_PRIO_MAXLOW;
+	asm volatile ("dmb");
+	task->stat = BLOCKED;
+	return 0;
+}
+
 struct Task_Info * select_next_task(struct Task_Info *current)
 {
 	struct Task_Info *task;
