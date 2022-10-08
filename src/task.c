@@ -1,9 +1,28 @@
+#include "hw_nvic.h"
 #include "armv7m_utils.h"
 #include "kernel_internal.h"
 #include "kernel.h"
 #include "task.h"
 
 //static const uint32_t TASK_MODULE = 0x50000;
+
+static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
+volatile const struct Sys_Tick * const osticks = &sys_tick;
+
+void SysTick_Handler(void)
+{
+	volatile uint32_t *scbreg;
+	uint32_t scbv;
+
+	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
+	scbv = *scbreg;
+	if (__builtin_expect((scbv & (1 << 16)) == 0, 0))
+		while (1)
+			;
+	sys_tick.tick_low += 1;
+	if (__builtin_expect(sys_tick.tick_low == 0, 0))
+		sys_tick.tick_high += 1;
+}
 
 void task_slot_init(void)
 {

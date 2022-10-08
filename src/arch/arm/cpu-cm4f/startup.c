@@ -20,7 +20,7 @@ void UsageFault_Handler(void);
 void __attribute__((naked, weak)) SVC_Handler(void);
 void __attribute__((weak)) DebugMon_Handler(void);
 void __attribute__((naked, weak)) PendSVC_Handler(void);
-static void SysTick_Handler(void);
+void SysTick_Handler(void);
 
 //*****************************************************************************
 //
@@ -71,10 +71,6 @@ extern uint32_t __data_end[];
 
 extern uint32_t __bss_start[];
 extern uint32_t __bss_end[];
-
-static struct Sys_Tick sys_tick;
-
-volatile const struct Sys_Tick * const osticks = &sys_tick;
 
 //*****************************************************************************
 //
@@ -158,9 +154,6 @@ static void __attribute__((noreturn, naked)) Reset_Handler(void)
 	scbv |= (PRIORITY1 << 24) | (PRIORITY7 << 16);
 	*scbreg = scbv;
 
-	sys_tick.tick_low = 0;
-	sys_tick.tick_high = 0;
-
 	scbreg = (volatile uint32_t *)NVIC_ST_RELOAD;
 	*scbreg = CPU_HZ / TICK_HZ - 1;
 	scbreg = (volatile uint32_t *)NVIC_ST_CURRENT;
@@ -221,19 +214,4 @@ void __attribute__((weak)) PendSVC_Handler(void)
 {
 	while (1)
 		;
-}
-
-static void SysTick_Handler(void)
-{
-	volatile uint32_t *scbreg;
-	uint32_t scbv;
-
-	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
-	scbv = *scbreg;
-	if (__builtin_expect((scbv & (1 << 16)) == 0, 0))
-		while (1)
-			;
-	sys_tick.tick_low += 1;
-	if (__builtin_expect(sys_tick.tick_low == 0, 0))
-		sys_tick.tick_high += 1;
 }
