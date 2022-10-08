@@ -100,8 +100,6 @@ void idle_task(void)
 				klog("Current SP: %x\n", ctl);
 				break;
 			case '3':
-				asm volatile ("mrs %0, xpsr":"=r"(val));
-				klog("Current xpsr: %x\n", val);
 				break;
 			case '4': /* priority of exception 4 */
 				expnum = conin[0] - '0';
