@@ -139,6 +139,7 @@ void SysTick_Handler(void)
 {
 	volatile uint32_t *scbreg;
 	uint32_t scbv;
+	int i;
 
 	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
 	scbv = *scbreg;
@@ -148,18 +149,40 @@ void SysTick_Handler(void)
 	sys_tick.tick_low += 1;
 	if (__builtin_expect(sys_tick.tick_low == 0, 0))
 		sys_tick.tick_high += 1;
+	for (i = 0; i < MAX_NUM_TIMERS; i++) {
+		if (ktimers[i].task == (void *)0)
+			continue;
+		if (--ktimers[i].interval == 0) {
+			ktimers[i].task->stat = READY;
+			ktimers[i].task = (void *)0;
+		}
+	}
 }
 
 void mdelay(uint32_t msec)
 {
-	int ticks, curtick, expired;
+	int ticks, curtick, expired, i;
+	struct Task_Info *task;
 
+	task = current_task();
 	ticks = (int)msec2tick(msec);
 	curtick = (int)osticks->tick_low;
 	expired = curtick + ticks;
-	while (curtick < expired) {
-		asm volatile ("svc #0");
-		curtick = (int)osticks->tick_low;
+	if (ticks < 5) {
+		while (curtick < expired) {
+			sched_wait();
+			curtick = (int)osticks->tick_low;
+		}
+	} else {
+		for (i = 0; i < MAX_NUM_TIMERS; i++) {
+			if (ktimers[i].task == (void *)0)
+				break;
+		}
+		ktimers[i].interval = ticks;
+		task->stat = BLOCKED;
+		asm volatile ("dmb");
+		ktimers[i].task = task;
+		sched_yield();
 	}
 }
 
