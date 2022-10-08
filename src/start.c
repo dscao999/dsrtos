@@ -99,6 +99,10 @@ void idle_task(void)
 				asm volatile ("mov	%0,sp\n":"=r"(ctl));
 				klog("Current SP: %x\n", ctl);
 				break;
+			case '3':
+				asm volatile ("mrs %0, xpsr":"=r"(val));
+				klog("Current xpsr: %x\n", val);
+				break;
 			case '4': /* priority of exception 4 */
 				expnum = conin[0] - '0';
 			default:

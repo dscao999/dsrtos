@@ -35,14 +35,15 @@ int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *pa
 		return -1;
 	}
 	frame = ((char *)(pstacks + i + 1)) - sizeof(struct Intr_Context);
-	intr_context_setup(frame, task_entry, param);
+	intr_context_setup(frame, (uint32_t)task_entry, param);
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
 	reg_context_setup(frame);
 	task->psp = frame;
 	task->bpri = TASK_PRIO_MAXLOW;
 	task->cpri = TASK_PRIO_MAXLOW;
 	asm volatile ("dmb");
-	task->stat = BLOCKED;
+	task->stat = READY;
+	*handle = task;
 	return 0;
 }
 

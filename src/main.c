@@ -29,7 +29,7 @@ void main(void)
 	int retv;
 
 	ledspec.led = 3;
-	ledspec.msecs = 200;
+	ledspec.msecs = 1000;
 	task_handle = (void *)0;
 	klog("Starting Tasks Now!\n");
 	retv = create_task(&task_handle, led_flash, &ledspec);

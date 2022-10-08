@@ -15,7 +15,7 @@ void mdelay(uint32_t msec)
 	curtick = (int)osticks->tick_low;
 	expired = curtick + ticks;
 	while (curtick < expired) {
-		asm volatile ("wfi");
+		asm volatile ("svc #0");
 		curtick = (int)osticks->tick_low;
 	}
 }
