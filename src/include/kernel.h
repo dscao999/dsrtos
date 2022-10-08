@@ -20,19 +20,6 @@ static inline uint32_t msec2tick(uint32_t msec)
 	return (msec * TICK_HZ)/1000;
 }
 
-void mdelay(uint32_t msec);
-void death_flash(int msecs);
-
-static inline void sched_yield(void)
-{
-	asm volatile ("wfi");
-}
-
-static inline uint16_t current_task_id(void)
-{
-	return 1;
-}
-
 int klog(const char *fmt, ...);
 
 #endif  /* KERNEL_DSCAO__ */

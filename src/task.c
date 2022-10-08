@@ -1,28 +1,15 @@
 #include "hw_nvic.h"
 #include "armv7m_utils.h"
+#include "board_def.h"
 #include "kernel_internal.h"
 #include "kernel.h"
 #include "task.h"
 
 //static const uint32_t TASK_MODULE = 0x50000;
 
+static struct Task_Timer ktimers[MAX_NUM_TIMERS];
 static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
 volatile const struct Sys_Tick * const osticks = &sys_tick;
-
-void SysTick_Handler(void)
-{
-	volatile uint32_t *scbreg;
-	uint32_t scbv;
-
-	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
-	scbv = *scbreg;
-	if (__builtin_expect((scbv & (1 << 16)) == 0, 0))
-		while (1)
-			;
-	sys_tick.tick_low += 1;
-	if (__builtin_expect(sys_tick.tick_low == 0, 0))
-		sys_tick.tick_high += 1;
-}
 
 void task_slot_init(void)
 {
@@ -34,6 +21,10 @@ void task_slot_init(void)
 		task->stat = NONE;
 		task->bpri = TASK_PRIO_MAXLOW;
 		task->cpri = TASK_PRIO_MAXLOW;
+	}
+	for (i = 0; i < MAX_NUM_TIMERS; i++) {
+		ktimers[i].interval = 0;
+		ktimers[i].task = (void *)0;
 	}
 }
 
@@ -142,4 +133,49 @@ exit_10:
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 	return;
+}
+
+void SysTick_Handler(void)
+{
+	volatile uint32_t *scbreg;
+	uint32_t scbv;
+
+	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
+	scbv = *scbreg;
+	if (__builtin_expect((scbv & (1 << 16)) == 0, 0))
+		while (1)
+			;
+	sys_tick.tick_low += 1;
+	if (__builtin_expect(sys_tick.tick_low == 0, 0))
+		sys_tick.tick_high += 1;
+}
+
+void mdelay(uint32_t msec)
+{
+	int ticks, curtick, expired;
+
+	ticks = (int)msec2tick(msec);
+	curtick = (int)osticks->tick_low;
+	expired = curtick + ticks;
+	while (curtick < expired) {
+		asm volatile ("svc #0");
+		curtick = (int)osticks->tick_low;
+	}
+}
+
+void death_flash(int msecs)
+{
+	int led;
+
+	led = 0;
+	if (errno != 0)
+		msecs = 100;
+	led_off_all();
+	do {
+		led_light(led, 1);
+		mdelay(msecs);
+		led_light(led, 0);
+		mdelay(msecs);
+		led += 1;
+	} while (1);
 }

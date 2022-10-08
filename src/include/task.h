@@ -15,6 +15,11 @@ struct Task_Info {
 	uint8_t bpri;
 };
 
+struct Task_Timer {
+	uint32_t interval;
+	struct Task_Info *task;
+};
+
 static inline struct Task_Info * current_task(void)
 {
 	uint32_t curpsp, intrnum;
@@ -32,4 +37,7 @@ void task_slot_init(void);
 
 int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *param);
 
+void mdelay(uint32_t msecs);
+
+void death_flash(int msecs);
 #endif  /* TASK_DSCAO__ */

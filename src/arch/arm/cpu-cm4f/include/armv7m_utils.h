@@ -60,6 +60,16 @@ static inline void spin_lock(volatile int *lock, uint32_t lv)
 		;
 }
 
+static inline void sched_yield(void)
+{
+	asm volatile ("svc #0");
+}
+
+static inline void sched_wait(void)
+{
+	asm volatile ("wfi");
+}
+
 void switch_stack(void *mstack, void *pstack);
 
 #endif  /* ARMV7M_UTILS_DSCAO__ */

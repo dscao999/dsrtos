@@ -7,19 +7,6 @@
 __attribute__ ((section(".proc_stacks"))) struct proc_stack pstacks[MAX_NUM_TASKS];
 __attribute__ ((section(".main_stack"))) uint32_t main_stack[MAX_MSTACK_SIZE];
 
-void mdelay(uint32_t msec)
-{
-	int ticks, curtick, expired;
-
-	ticks = (int)msec2tick(msec);
-	curtick = (int)osticks->tick_low;
-	expired = curtick + ticks;
-	while (curtick < expired) {
-		asm volatile ("svc #0");
-		curtick = (int)osticks->tick_low;
-	}
-}
-
 uint64_t __attribute__((leaf)) current_ticks(void)
 {
         union {
@@ -62,21 +49,4 @@ int klog(const char *fmt, ...)
 	console_putstr(logbuf, len);
 
 	return len;
-}
-
-void death_flash(int msecs)
-{
-	int led;
-
-	led = 0;
-	if (errno != 0)
-		msecs = 100;
-	led_off_all();
-	do {
-		led_light(led, 1);
-		mdelay(msecs);
-		led_light(led, 0);
-		mdelay(msecs);
-		led += 1;
-	} while (1);
 }
