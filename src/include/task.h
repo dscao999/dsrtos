@@ -16,7 +16,7 @@ struct Task_Info {
 };
 
 struct Task_Timer {
-	uint32_t interval;
+	int eticks;
 	struct Task_Info *task;
 };
 
@@ -26,7 +26,7 @@ static inline struct Task_Info * current_task(void)
 
 	asm volatile ("mrs %0, ipsr":"=r"(intrnum));
 	intrnum &= 0x01ff;
-	if (intrnum)
+	if (__builtin_expect(intrnum, 1))
 		asm volatile ("mrs %0, psp":"=r"(curpsp));
 	else
 		asm volatile ("mov %0, sp":"=r"(curpsp));
@@ -35,7 +35,8 @@ static inline struct Task_Info * current_task(void)
 
 void task_slot_init(void);
 
-int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *param);
+int create_task(struct Task_Info **handle, uint32_t prival,
+		void *(*task_entry)(void *), void *param);
 
 void mdelay(uint32_t msecs);
 

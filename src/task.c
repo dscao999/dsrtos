@@ -23,12 +23,13 @@ void task_slot_init(void)
 		task->cpri = TASK_PRIO_MAXLOW;
 	}
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		ktimers[i].interval = 0;
+		ktimers[i].eticks = 0;
 		ktimers[i].task = (void *)0;
 	}
 }
 
-int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *param)
+int create_task(struct Task_Info **handle, uint32_t prival,
+		void *(*task_entry)(void *), void *param)
 {
 	int i;
 	struct Task_Info *task;
@@ -49,8 +50,10 @@ int create_task(struct Task_Info **handle, void *(*task_entry)(void *), void *pa
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
 	reg_context_setup(frame);
 	task->psp = frame;
-	task->bpri = TASK_PRIO_MAXLOW;
-	task->cpri = TASK_PRIO_MAXLOW;
+	if (prival > TASK_PRIO_MAXLOW)
+		prival = TASK_PRIO_MAXLOW;
+	task->bpri = prival;
+	task->cpri = prival;
 	asm volatile ("dmb");
 	task->stat = READY;
 	*handle = task;
@@ -135,11 +138,32 @@ exit_10:
 	return;
 }
 
+void __attribute__((naked)) PendSVC_Handler(void)
+{
+	SVC_Handler();
+}
+
+volatile uint32_t switched = 0;
+
+static inline void switch_task()
+{
+	volatile uint32_t *int_ctrl;
+	uint32_t val;
+
+	int_ctrl = (volatile uint32_t *)NVIC_INT_CTRL;
+	val = *int_ctrl;
+	val |= (1 << 28);
+	*int_ctrl = val;
+	switched += 1;
+}
+
 void SysTick_Handler(void)
 {
 	volatile uint32_t *scbreg;
 	uint32_t scbv;
-	int i;
+	int i, do_switch;
+	struct Task_Info *task, *nxt_task;
+	static struct Task_Info *prev_task = (void *)0;
 
 	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
 	scbv = *scbreg;
@@ -152,10 +176,24 @@ void SysTick_Handler(void)
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		if (ktimers[i].task == (void *)0)
 			continue;
-		if (--ktimers[i].interval == 0) {
+		if (--ktimers[i].eticks == 0) {
 			ktimers[i].task->stat = READY;
 			ktimers[i].task = (void *)0;
 		}
+	}
+	do_switch = 0;
+	task = current_task();
+	if (task == prev_task) {
+		if ((sys_tick.tick_low & 7)  == 0) {
+			do_switch = 1;
+			switch_task();
+		}
+	} else
+		prev_task = task;
+	if (do_switch == 0) {
+		nxt_task = select_next_task(task);
+		if (nxt_task != task && nxt_task->cpri < task->cpri)
+			switch_task();
 	}
 }
 
@@ -178,7 +216,7 @@ void mdelay(uint32_t msec)
 			if (ktimers[i].task == (void *)0)
 				break;
 		}
-		ktimers[i].interval = ticks;
+		ktimers[i].eticks = ticks;
 		task->stat = BLOCKED;
 		asm volatile ("dmb");
 		ktimers[i].task = task;

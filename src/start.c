@@ -47,7 +47,6 @@ void __attribute__((naked)) kernel_start(void)
 			"\tsvc #0\n");
 	main();
 
-//	death_flash(80);
 	idle_task();
 }
 
@@ -68,6 +67,8 @@ static inline int exception_priority(int expnum)
 	return ((prival >> (bitpos*8)) & 0x0ff) >> 5;
 }
 
+extern volatile uint32_t switched;
+
 static char conin[256];
 void idle_task(void)
 {
@@ -77,8 +78,6 @@ void idle_task(void)
 	klog("Idle Task Entered\n");
 	msgpos = 0;
 	do {
-		asm volatile (  "mov r0, #0\n"	\
-				"\tsvc #0\n");
 		if (msgpos >= sizeof(conin) - 1)
 			msgpos = 0;
 		msgpos += console_getstr(conin+msgpos, sizeof(conin) - msgpos);
@@ -100,6 +99,7 @@ void idle_task(void)
 				klog("Current SP: %x\n", ctl);
 				break;
 			case '3':
+				klog("Tasked Switched: %d\n", switched);
 				break;
 			case '4': /* priority of exception 4 */
 				expnum = conin[0] - '0';

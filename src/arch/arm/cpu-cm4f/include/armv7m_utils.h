@@ -62,7 +62,11 @@ static inline void spin_lock(volatile int *lock, uint32_t lv)
 
 static inline void sched_yield(void)
 {
-	asm volatile ("svc #0");
+	uint32_t intrnum;
+
+	asm volatile ("mrs %0, ipsr":"=r"(intrnum));
+	if ((intrnum & 0x01ff) == 0)
+		asm volatile ("svc #0");
 }
 
 static inline void sched_wait(void)
