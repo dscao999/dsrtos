@@ -28,7 +28,7 @@ static inline void led_off_all(void)
 
 void led_light(int led, int onoff);
 void led_mark(void);
-void death_flash(int msecs);
+void death_flash();
 
 int console_getstr(char *buf, int buflen);
 int console_putstr(const char *buf, int len);

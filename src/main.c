@@ -42,14 +42,13 @@ void main(void)
 	ledspec.led = 3;
 	ledspec.msecs = 1000;
 	task_handle = (void *)0;
-	klog("Starting Tasks Now!\n");
 	retv = create_task(&task_handle, 10, led_flash, &ledspec);
 	if (unlikely(retv == -1))
-		death_flash(200);
+		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
 	retv = create_task(&task_handle, TASK_PRIO_MAXLOW,
 			timed_hello, (void *)5);
 	if (unlikely(retv == -1))
-		death_flash(200);
+		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
 }

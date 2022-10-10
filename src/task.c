@@ -6,6 +6,8 @@
 #include "task.h"
 
 //static const uint32_t TASK_MODULE = 0x50000;
+#define NULL	((void *)0)
+#define unlikely(x)	__builtin_expect((x), 0)
 
 static struct Task_Timer ktimers[MAX_NUM_TIMERS];
 static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
@@ -82,14 +84,12 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 		} else if (task->cpri == pri)
 			candidate |= (1 << i);
 	}
-	i = 0;
+	if (candidate == 0)
+		return (void *)0;
+
 	sel = (curseq + 1) & mask;
-	while ((candidate & (1 << sel)) == 0) {
+	while ((candidate & (1 << sel)) == 0)
 		sel = (sel + 1) & mask;
-		i += 1;
-		if (i > MAX_NUM_TASKS)
-			death_flash(100);
-	}
 	task = (struct Task_Info *)(pstacks + sel);
 	return task;
 }
@@ -119,6 +119,8 @@ void __attribute__((naked)) SVC_Handler(void)
 	nxt = select_next_task(cur);
 	if (cur == nxt)
 		goto exit_10;
+	if (unlikely(nxt == NULL))
+		death_flash();
 
 	if (cur->stat == RUN)
 		cur->stat = READY;
@@ -192,6 +194,8 @@ void SysTick_Handler(void)
 		prev_task = task;
 	if (do_switch == 0) {
 		nxt_task = select_next_task(task);
+		if (unlikely(nxt_task == (void *)0))
+			death_flash();
 		if (nxt_task != task && nxt_task->cpri < task->cpri)
 			switch_task();
 	}
@@ -222,21 +226,4 @@ void mdelay(uint32_t msec)
 		ktimers[i].task = task;
 		sched_yield();
 	}
-}
-
-void death_flash(int msecs)
-{
-	int led;
-
-	led = 0;
-	if (errno != 0)
-		msecs = 100;
-	led_off_all();
-	do {
-		led_light(led, 1);
-		mdelay(msecs);
-		led_light(led, 0);
-		mdelay(msecs);
-		led += 1;
-	} while (1);
 }

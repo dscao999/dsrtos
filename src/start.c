@@ -37,14 +37,14 @@ void __attribute__((naked)) kernel_start(void)
 
 	task = (struct Task_Info *)(((uint32_t)(pstack - 1)) & PSTACK_MASK);
 	if ((void *)task != (void *)(pstacks + MAX_NUM_TASKS - 1))
-		death_flash(100);
+		death_flash();
 
-	klog("Before stack switch\n");
 	task->stat = RUN;
 	switch_stack(mstack, pstack);
 	/* old stack switched, no local variable usable */
-	asm volatile (  "mov r0, #0\n"	\
-			"\tsvc #0\n");
+	sched_yield();
+	start_systick();
+
 	main();
 
 	idle_task();
@@ -117,5 +117,5 @@ void idle_task(void)
 		}
 		msgpos = 0;
 	} while (errno == 0);
-	death_flash(100);
+	death_flash();
 }

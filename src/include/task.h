@@ -40,5 +40,4 @@ int create_task(struct Task_Info **handle, uint32_t prival,
 
 void mdelay(uint32_t msecs);
 
-void death_flash(int msecs);
 #endif  /* TASK_DSCAO__ */

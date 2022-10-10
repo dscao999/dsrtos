@@ -1,6 +1,7 @@
 #ifndef ARMV7M_UTILS_DSCAO__
 #define ARMV7M_UTILS_DSCAO__
 #include <stdint.h>
+#include "hw_nvic.h"
 #include "misc_utils.h"
 
 struct Intr_Context {
@@ -72,6 +73,17 @@ static inline void sched_yield(void)
 static inline void sched_wait(void)
 {
 	asm volatile ("wfi");
+}
+
+static inline void start_systick(void)
+{
+	volatile uint32_t *st_ctrl;
+	uint32_t stval;
+
+        st_ctrl = (volatile uint32_t *)NVIC_ST_CTRL;
+        stval = *st_ctrl;
+        stval |= NVIC_ST_CTRL_CLK_SRC|NVIC_ST_CTRL_INTEN|NVIC_ST_CTRL_ENABLE;
+        *st_ctrl = stval;
 }
 
 void switch_stack(void *mstack, void *pstack);

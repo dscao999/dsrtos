@@ -158,10 +158,6 @@ static void __attribute__((noreturn, naked)) Reset_Handler(void)
 	*scbreg = CPU_HZ / TICK_HZ - 1;
 	scbreg = (volatile uint32_t *)NVIC_ST_CURRENT;
 	*scbreg = 0;
-	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
-	scbv = *scbreg;
-	scbv |= NVIC_ST_CTRL_CLK_SRC|NVIC_ST_CTRL_INTEN|NVIC_ST_CTRL_ENABLE;
-	*scbreg = scbv;
 
 	kernel_start();
 	while (1)

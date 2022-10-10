@@ -36,6 +36,26 @@ void led_light(int led, int onoff)
 	MAP_GPIOPinWrite(GPIO_PORTF_BASE, pinnum, onv);
 }
 
+#define MAX_LOOPS 200000
+
+void death_flash()
+{
+	int led;
+	volatile uint32_t loops;
+
+	led = 0;
+	led_off_all();
+	do {
+		led_light(led, 1);
+		for (loops = 0; loops < MAX_LOOPS; loops++)
+			;
+		led_light(led, 0);
+		for (loops = 0; loops < MAX_LOOPS; loops++)
+			;
+		led += 1;
+	} while (1);
+}
+
 int console_getstr(char *buf, int buflen)
 {
 	uint8_t head, tail, val;
