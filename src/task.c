@@ -133,10 +133,15 @@ static void task_switch(struct Reg_Context *frame)
 void __attribute__((naked)) SVC_Handler(void)
 {
 	struct Reg_Context *frame;
+	struct Intr_Context *intr_frame;
+	uint16_t inst;
 
 	asm volatile   ("push {r4-r11, lr}\n"	\
 			"\tmov %0, sp\n":"=r"(frame));
-	task_switch(frame);
+	intr_frame = getpsp();
+	inst = *((uint16_t *)(intr_frame->retadr - 2));
+	if ((inst & 0x0ff) == 0)
+		task_switch(frame);
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
