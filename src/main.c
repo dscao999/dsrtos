@@ -12,12 +12,13 @@ struct LED_FLASH {
 static void * led_flash(void *param)
 {
 	struct LED_FLASH *ledinfo = param;
+
 	do {
 		led_light(ledinfo->led, 1);
 		mdelay(ledinfo->msecs);
 		led_light(ledinfo->led, 0);
 		mdelay(ledinfo->msecs);
-	} while (1);
+	} while (errno == 0);
 	return (void *)0;
 }
 
@@ -31,7 +32,8 @@ void * timed_hello(void *param)
 	do {
 		klog("Ticking: %u\n", tick++);
 		mdelay(sec*1000);
-	} while (1);
+	} while (tick < 10);
+	return (void *)0;
 }
 
 void main(void)
@@ -40,7 +42,7 @@ void main(void)
 	int retv;
 
 	ledspec.led = 3;
-	ledspec.msecs = 1000;
+	ledspec.msecs = 500;
 	task_handle = (void *)0;
 	retv = create_task(&task_handle, HIGH, led_flash, &ledspec);
 	if (unlikely(retv == -1))
@@ -50,4 +52,5 @@ void main(void)
 	if (unlikely(retv == -1))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
+	klog("Task Reaper: %x\n", (uint32_t)task_reaper);
 }

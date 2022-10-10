@@ -49,6 +49,7 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	}
 	frame = ((char *)(pstacks + i + 1)) - sizeof(struct Intr_Context);
 	intr_context_setup(frame, (uint32_t)task_entry, param);
+	((struct Intr_Context *)frame)->lr = (uint32_t)task_reaper;
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
 	reg_context_setup(frame);
 	task->psp = frame;
@@ -105,6 +106,8 @@ static inline void setpsp(void *psp)
 	asm volatile ("msr psp, %0"::"r"(psp));
 }
 
+volatile uint32_t switched = 0;
+
 static void task_switch(struct Reg_Context *frame)
 {
 	struct Task_Info *nxt, *cur;
@@ -128,6 +131,7 @@ static void task_switch(struct Reg_Context *frame)
 	*frame = *nxt_frame;
 	nxt_frame = nxt_frame + 1;
 	setpsp(nxt_frame);
+	switched += 1;
 }
 
 void __attribute__((naked)) SVC_Handler(void)
@@ -157,9 +161,7 @@ void __attribute__((naked)) PendSVC_Handler(void)
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
 
-volatile uint32_t switched = 0;
-
-static inline void switch_task()
+static inline void arm_pendsvc()
 {
 	volatile uint32_t *int_ctrl;
 	uint32_t val;
@@ -168,7 +170,6 @@ static inline void switch_task()
 	val = *int_ctrl;
 	val |= (1 << 28);
 	*int_ctrl = val;
-	switched += 1;
 }
 
 void SysTick_Handler(void)
@@ -200,7 +201,7 @@ void SysTick_Handler(void)
 	if (task == prev_task) {
 		if ((sys_tick.tick_low & 7)  == 0) {
 			do_switch = 1;
-			switch_task();
+			arm_pendsvc();
 		}
 	} else
 		prev_task = task;
@@ -209,7 +210,7 @@ void SysTick_Handler(void)
 		if (unlikely(nxt_task == (void *)0))
 			death_flash();
 		if (nxt_task != task && nxt_task->cpri < task->cpri)
-			switch_task();
+			arm_pendsvc();
 	}
 }
 
@@ -238,4 +239,20 @@ void mdelay(uint32_t msec)
 		ktimers[i].task = task;
 		sched_yield();
 	}
+}
+
+void __attribute__((naked, noreturn)) task_reaper(void)
+{
+	struct Task_Info *task;
+
+	task = current_task();
+	klog("Task: %x ended\n", (uint32_t)task);
+	task->stat = NONE;
+	asm volatile ("dmb");
+	task->bpri = BOT;
+	task->cpri = BOT;
+	sched_yield();
+	do {
+		sched_wait();
+	} while (1);
 }

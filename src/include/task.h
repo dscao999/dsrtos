@@ -30,7 +30,7 @@ static inline struct Task_Info * current_task(void)
 		asm volatile ("mrs %0, psp":"=r"(curpsp));
 	else
 		asm volatile ("mov %0, sp":"=r"(curpsp));
-	return (struct Task_Info *)(curpsp & PSTACK_MASK);
+	return (struct Task_Info *)((curpsp - 1) & PSTACK_MASK);
 }
 
 void task_slot_init(void);
@@ -39,5 +39,7 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param);
 
 void mdelay(uint32_t msecs);
+
+void __attribute__((naked, noreturn)) task_reaper(void);
 
 #endif  /* TASK_DSCAO__ */
