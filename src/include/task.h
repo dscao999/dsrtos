@@ -3,6 +3,7 @@
 #include "kernel_internal.h"
 
 enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
+enum TASK_PRIORITY {TOP = 0, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
 
 #define TASK_PRIO_MAXLOW	255
 
@@ -10,9 +11,8 @@ enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
 
 struct Task_Info {
 	void *psp;
-	uint8_t stat;
-	uint8_t cpri;
-	uint8_t bpri;
+	enum TASK_STATE stat;
+	enum TASK_PRIORITY cpri, bpri;
 };
 
 struct Task_Timer {
@@ -35,7 +35,7 @@ static inline struct Task_Info * current_task(void)
 
 void task_slot_init(void);
 
-int create_task(struct Task_Info **handle, uint32_t prival,
+int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param);
 
 void mdelay(uint32_t msecs);

@@ -99,7 +99,7 @@ void idle_task(void)
 				klog("Current SP: %x\n", ctl);
 				break;
 			case '3':
-				klog("Tasked Switched: %d\n", switched);
+				klog("Task Switched: %d\n", switched);
 				break;
 			case '4': /* priority of exception 4 */
 				expnum = conin[0] - '0';

@@ -4,6 +4,8 @@
 #include "hw_nvic.h"
 #include "misc_utils.h"
 
+#define likely(x)	__builtin_expect((x), 1)
+
 struct Intr_Context {
 	uint32_t r0;
 	uint32_t r1;
@@ -66,7 +68,7 @@ static inline void sched_yield(void)
 	uint32_t intrnum;
 
 	asm volatile ("mrs %0, ipsr":"=r"(intrnum));
-	if ((intrnum & 0x01ff) == 0)
+	if (likely((intrnum & 0x01ff) == 0))
 		asm volatile ("svc #0");
 }
 

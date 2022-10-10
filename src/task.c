@@ -21,8 +21,8 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		task->stat = NONE;
-		task->bpri = TASK_PRIO_MAXLOW;
-		task->cpri = TASK_PRIO_MAXLOW;
+		task->bpri = BOT;
+		task->cpri = BOT;
 	}
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;
@@ -30,7 +30,7 @@ void task_slot_init(void)
 	}
 }
 
-int create_task(struct Task_Info **handle, uint32_t prival,
+int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param)
 {
 	int i;
@@ -52,8 +52,6 @@ int create_task(struct Task_Info **handle, uint32_t prival,
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
 	reg_context_setup(frame);
 	task->psp = frame;
-	if (prival > TASK_PRIO_MAXLOW)
-		prival = TASK_PRIO_MAXLOW;
 	task->bpri = prival;
 	task->cpri = prival;
 	asm volatile ("dmb");
@@ -65,13 +63,13 @@ int create_task(struct Task_Info **handle, uint32_t prival,
 struct Task_Info * select_next_task(struct Task_Info *current)
 {
 	struct Task_Info *task;
-	uint8_t pri;
+	enum TASK_PRIORITY pri;
        	int curseq, i, mask, candidate, sel;
 
 	mask = MAX_NUM_TASKS - 1;
 	candidate = 0;
 	curseq = -1;
-	pri = TASK_PRIO_MAXLOW;
+	pri = BOT;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		if (task->stat != READY && task->stat != RUN)
@@ -107,18 +105,15 @@ static inline void setpsp(void *psp)
 	asm volatile ("msr psp, %0"::"r"(psp));
 }
 
-void __attribute__((naked)) SVC_Handler(void)
+static void task_switch(struct Reg_Context *frame)
 {
 	struct Task_Info *nxt, *cur;
-	struct Reg_Context *frame, *cur_frame, *nxt_frame;
-
-	asm volatile   ("push {r4-r11, lr}\n"	\
-			"\tmov %0, sp\n":"=r"(frame));
+	struct Reg_Context *cur_frame, *nxt_frame;
 
 	cur = current_task();
 	nxt = select_next_task(cur);
 	if (cur == nxt)
-		goto exit_10;
+		return;
 	if (unlikely(nxt == NULL))
 		death_flash();
 
@@ -133,16 +128,28 @@ void __attribute__((naked)) SVC_Handler(void)
 	*frame = *nxt_frame;
 	nxt_frame = nxt_frame + 1;
 	setpsp(nxt_frame);
+}
 
-exit_10:
+void __attribute__((naked)) SVC_Handler(void)
+{
+	struct Reg_Context *frame;
+
+	asm volatile   ("push {r4-r11, lr}\n"	\
+			"\tmov %0, sp\n":"=r"(frame));
+	task_switch(frame);
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
-	return;
 }
 
 void __attribute__((naked)) PendSVC_Handler(void)
 {
-	SVC_Handler();
+	struct Reg_Context *frame;
+
+	asm volatile   ("push {r4-r11, lr}\n"	\
+			"\tmov %0, sp\n":"=r"(frame));
+	task_switch(frame);
+	asm volatile   ("mov sp, %0\n"	\
+			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
 
 volatile uint32_t switched = 0;
