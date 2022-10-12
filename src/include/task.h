@@ -1,6 +1,9 @@
 #ifndef TASK_DSCAO__ 
 #define TASK_DSCAO__ 
 #include "kernel_internal.h"
+#include "armv7m_utils.h"
+
+#define NULL ((void *)0)
 
 enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
 enum TASK_PRIORITY {TOP = 1, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
@@ -36,6 +39,32 @@ static inline struct Task_Info * current_task(void)
 	else
 		asm volatile ("mov %0, sp":"=r"(curpsp));
 	return (struct Task_Info *)((curpsp - 1) & PSTACK_MASK);
+}
+
+static inline void spin_lock(volatile int *lock)
+{
+	int status;
+	struct Task_Info *locker, *waiter;
+
+	waiter = current_task();
+	status = try_lock(lock, (uint32_t)waiter);
+	while (status != 0) {
+		if (status != 1) {
+			locker = (struct Task_Info *)status;
+			if (waiter->cpri < locker->cpri)
+				locker->cpri = waiter->cpri;
+		}
+		status = try_lock(lock, (uint32_t)waiter);
+	}
+}
+
+static inline void un_lock(volatile int *lock)
+{
+	struct Task_Info *me;
+
+	me = current_task();
+	*lock = 0;
+	me->cpri = me->bpri;
 }
 
 void task_slot_init(void);

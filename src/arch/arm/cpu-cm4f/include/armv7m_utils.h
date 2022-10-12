@@ -57,12 +57,6 @@ static inline int32_t try_lock(volatile int *lock, uint32_t lv)
 	return retv;
 }
 
-static inline void spin_lock(volatile int *lock, uint32_t lv)
-{
-	while(try_lock(lock, lv))
-		;
-}
-
 static inline void svc_switch(void)
 {
 	uint32_t intrnum;

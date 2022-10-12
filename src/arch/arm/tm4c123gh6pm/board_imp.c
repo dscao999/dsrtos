@@ -14,6 +14,7 @@
 #include "kernel.h"
 #include "armv7m_utils.h"
 #include "misc_utils.h"
+#include "task.h"
 
 void led_light(int led, int onoff)
 {
@@ -81,14 +82,13 @@ int console_getstr(char *buf, int buflen)
 static char uart0_dmabuf[256];
 int console_putstr(const char *buf, int len)
 {
-       	int dmach, dma_ctrl, lockv, i, olen;
+	int dmach, dma_ctrl, i, olen;
       	volatile uint32_t *dma_enable_reg, *uart_dmactl_reg;
 
 	if (len <= 0 || len > sizeof(uart0_dmabuf) - 1)
 		return 0;
 
-	lockv = 1; /* lockv should be the task id and other book keeping info */
-	spin_lock(&uart0_lock, lockv);
+	spin_lock(&uart0_lock);
 	olen = 0;
 	for (i = 0; i < len; i++) {
 		uart0_dmabuf[olen++] = buf[i];
@@ -151,6 +151,6 @@ void UART0_Handler(void)
 	        dmactl = *uart_dmactl_reg;
 		dmactl &= ~UART_DMACTL_TXDMAE;
 		*uart_dmactl_reg = dmactl;
-		uart0_lock = 0;
+		un_lock(&uart0_lock);
 	}
 }

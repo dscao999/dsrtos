@@ -16,6 +16,8 @@ static const uint32_t MODULE = 0x10000;
 #define unlikely(x)	__builtin_expect((x), 0)
 
 static struct Task_Timer ktimers[MAX_NUM_TIMERS];
+static volatile int ktimers_lock = 0;
+
 static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
 volatile const struct Sys_Tick * const osticks = &sys_tick;
 
@@ -37,6 +39,7 @@ void task_slot_init(void)
 		ktimers[i].eticks = 0;
 		ktimers[i].task = (void *)0;
 	}
+	ktimers_lock = 0;
 }
 
 int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
@@ -221,9 +224,26 @@ void sched_yield(void)
 	svc_switch();
 }
 
+static inline void timed_block(struct Task_Info *task, uint32_t ticks)
+{
+	int i;
+
+	spin_lock(&ktimers_lock);
+	for (i = 0; i < MAX_NUM_TIMERS; i++) {
+		if (ktimers[i].task == (void *)0)
+			break;
+	}
+	ktimers[i].eticks = ticks;
+	task->stat = BLOCKED;
+	task->timer = ktimers + i;
+	asm volatile ("dmb");
+	ktimers[i].task = task;
+	un_lock(&ktimers_lock);
+}
+
 void mdelay(uint32_t msec)
 {
-	int ticks, curtick, expired, i;
+	int ticks, curtick, expired;
 	struct Task_Info *task;
 
 	task = current_task();
@@ -236,15 +256,7 @@ void mdelay(uint32_t msec)
 			curtick = (int)osticks->tick_low;
 		}
 	} else {
-		for (i = 0; i < MAX_NUM_TIMERS; i++) {
-			if (ktimers[i].task == (void *)0)
-				break;
-		}
-		ktimers[i].eticks = ticks;
-		task->stat = BLOCKED;
-		task->timer = ktimers + i;
-		asm volatile ("dmb");
-		ktimers[i].task = task;
+		timed_block(task, ticks);
 		sched_yield();
 	}
 }
