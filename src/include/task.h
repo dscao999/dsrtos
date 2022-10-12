@@ -7,6 +7,7 @@
 
 enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
 enum TASK_PRIORITY {TOP = 1, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
+enum KTIMER_STATE {FREE = 0, USED = 1, ARMED = 3};
 
 #define TASK_PRIO_MAXLOW	255
 
@@ -24,8 +25,9 @@ struct Task_Info {
 };
 
 struct Task_Timer {
-	int eticks;
 	struct Task_Info *task;
+	int eticks;
+	volatile enum KTIMER_STATE stat;
 };
 
 static inline struct Task_Info * current_task(void)
@@ -44,15 +46,15 @@ static inline struct Task_Info * current_task(void)
 static inline void spin_lock(volatile int *lock)
 {
 	int status;
-	struct Task_Info *locker, *waiter;
+	struct Task_Info *holder, *waiter;
 
 	waiter = current_task();
 	status = try_lock(lock, (uint32_t)waiter);
 	while (status != 0) {
 		if (status != 1) {
-			locker = (struct Task_Info *)status;
-			if (waiter->cpri < locker->cpri)
-				locker->cpri = waiter->cpri;
+			holder = (struct Task_Info *)status;
+			if (waiter->cpri < holder->cpri)
+				holder->cpri = waiter->cpri;
 		}
 		status = try_lock(lock, (uint32_t)waiter);
 	}

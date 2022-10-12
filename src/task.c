@@ -9,6 +9,7 @@
 #define ENORTASK	2
 #define ETRESVD		3
 #define ENOSTASK	4
+#define ENOTIMER	5
 
 static const uint32_t MODULE = 0x10000;
 
@@ -38,6 +39,7 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;
 		ktimers[i].task = (void *)0;
+		ktimers[i].stat = FREE;
 	}
 	ktimers_lock = 0;
 }
@@ -183,6 +185,7 @@ void SysTick_Handler(void)
 	uint32_t scbv;
 	int i;
 	struct Task_Info *task, *nxt_task;
+	struct Task_Timer *timer;
 
 	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
 	scbv = *scbreg;
@@ -193,12 +196,12 @@ void SysTick_Handler(void)
 	if (__builtin_expect(sys_tick.tick_low == 0, 0))
 		sys_tick.tick_high += 1;
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		if (ktimers[i].task == NULL)
+		if (ktimers[i].stat != ARMED)
 			continue;
-		if (--ktimers[i].eticks == 0) {
-			ktimers[i].task->stat = READY;
-			ktimers[i].task->timer = NULL;
-			ktimers[i].task = NULL;
+		timer = ktimers + i;
+		if (--timer->eticks == 0) {
+			timer->task->stat = READY;
+			timer->stat = USED;
 		}
 	}
 	task = current_task();
@@ -224,27 +227,31 @@ void sched_yield(void)
 	svc_switch();
 }
 
-static inline void timed_block(struct Task_Info *task, uint32_t ticks)
+static inline struct Task_Timer * get_ktimer(void)
 {
 	int i;
+	struct Task_Timer *timer = NULL;
 
 	spin_lock(&ktimers_lock);
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		if (ktimers[i].task == (void *)0)
+		if (ktimers[i].stat == FREE)
 			break;
 	}
-	ktimers[i].eticks = ticks;
-	task->stat = BLOCKED;
-	task->timer = ktimers + i;
-	asm volatile ("dmb");
-	ktimers[i].task = task;
+	if (i == MAX_NUM_TIMERS)
+		klog("No more task timers: %x\n", MODULE + ENOTIMER);
+	else {
+		ktimers[i].stat = USED;
+		timer = ktimers + i;
+	}
 	un_lock(&ktimers_lock);
+	return timer;
 }
 
 void mdelay(uint32_t msec)
 {
 	int ticks, curtick, expired;
 	struct Task_Info *task;
+	struct Task_Timer *timer;
 
 	task = current_task();
 	ticks = (int)msec2tick(msec);
@@ -256,8 +263,17 @@ void mdelay(uint32_t msec)
 			curtick = (int)osticks->tick_low;
 		}
 	} else {
-		timed_block(task, ticks);
+		timer = get_ktimer();
+		if (unlikely(timer == NULL))
+			death_flash();
+		timer->eticks = ticks;
+		timer->task = task;
+		task->stat = BLOCKED;
+		task->timer = timer;
+		asm volatile ("dmb");
+		timer->stat = ARMED;
 		sched_yield();
+		timer->stat = FREE;
 	}
 }
 
@@ -336,10 +352,8 @@ int task_del(struct Task_Info *task)
 		retv = -(MODULE + ENOSTASK);
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
-		if (task->timer) {
-			task->timer->task = NULL;
-			task->timer = NULL;
-		}
+		if (task->timer)
+			task->timer->stat = FREE;
 		task->stat = NONE;
 		task->bpri = BOT;
 		task->cpri = BOT;
