@@ -69,51 +69,70 @@ static inline int exception_priority(int expnum)
 
 extern volatile uint32_t switched;
 
-static char conin[256];
+static int copy_cmd(char *cmd, const char *rawstr, int len)
+{
+	char *dst;
+	const char *src;
+
+	dst = cmd;
+	src = rawstr;
+	while (src < rawstr + len) {
+		switch(*src) {
+			case '\b':
+				dst -= 2;
+				if (dst < cmd)
+					dst = cmd - 1;
+				break;
+			case ' ':
+				*dst = *src;
+				while (*(src+1) == ' ')
+					src += 1;
+				break;
+			default:
+				*dst = *src;
+		}
+		dst += 1;
+		src += 1;
+	}
+	return (dst - cmd);
+}
+
+static char conin[256], cmd[256];
 void idle_task(void)
 {
-	int msgpos, expnum;
-	uint32_t ctl, val;
+	int msgpos, len, num_tasks, i;
+	const char *arg;
+	struct Task_Info *task, *tasks[8];
 
 	klog("Idle Task Entered\n");
 	msgpos = 0;
 	do {
 		if (msgpos >= sizeof(conin) - 1)
 			msgpos = 0;
-		msgpos += console_getstr(conin+msgpos, sizeof(conin) - msgpos);
-		if (msgpos == 0 || memchr(conin, msgpos, '\r') == -1)
+		len = console_getstr(conin+msgpos, sizeof(conin) - msgpos);
+		if (len == 0)
 			continue;
-		switch(conin[0]) {
-			case '0':
-				asm volatile ("mrs	%0, control\n":"=r"(ctl));
-				klog("Control Reg: %x\n", ctl);
-				break;
-			case '1':
-				asm volatile ("ldr	r2, =0xE000ED14\n"	\
-						"ldr	%0, [r2]\n"	\
-						:"=r"(ctl)::"r2");
-				klog("Control Reg: %x\n", ctl);
-				break;
-			case '2':
-				asm volatile ("mov	%0,sp\n":"=r"(ctl));
-				klog("Current SP: %x\n", ctl);
-				break;
-			case '3':
-				klog("Task Switched: %d\n", switched);
-				break;
-			case '4': /* priority of exception 4 */
-				expnum = conin[0] - '0';
-			default:
-				expnum = -1;
-				if (conin[0] >= '0' && conin[0] <= '9')
-					expnum = conin[0] - '0';
-				else if (conin[0] >= 'A' && conin[0] <= 'F')
-					expnum = conin[0] - 'A' + 10;
-				if (expnum < 4 || expnum > 15)
-					break;
-				val = exception_priority(expnum);
-				klog("Priority of exception %d: %u\n", expnum, val);
-				break;
+		msgpos += len;
+		if (memchr(conin, msgpos, '\r') == -1)
+			continue;
+		len = copy_cmd(cmd, conin, msgpos);
+		cmd[len] = 0;
+		if (memcmp(cmd, "tdel ", 5) == 0) {
+			arg = cmd + 5;
+			task = (struct Task_Info *)hexstr2num(arg, len - 5);
+			if (task_del(task) != 0)
+				klog("Cannot delete task: %x\n", (uint32_t)task);
+		} else if (memcmp(cmd, "tinfo ", 6) == 0) {
+			arg = cmd + 6;
+			task = (struct Task_Info *)hexstr2num(arg, len - 6);
+			task_info(task);
+		} else if (memcmp(cmd, "tlist", 5) == 0) {
+			num_tasks = task_list(tasks, 8);
+			len = snprintf(cmd, sizeof(cmd), "%x", (uint32_t)tasks[0]);
+			for (i = 1; i < num_tasks; i++)
+				len += snprintf(cmd+len, sizeof(cmd)-len, ", %x", (uint32_t)tasks[i]);
+			cmd[len] = 0;
+			klog("Current Tasks: %s\n", cmd);
 		}
 		msgpos = 0;
 	} while (errno == 0);

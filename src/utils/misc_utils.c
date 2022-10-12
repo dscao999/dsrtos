@@ -209,3 +209,26 @@ int memcmp(const char *op1, const char *op2, int len)
 	}
 	return retv;
 }
+
+uint32_t hexstr2num(const char *hexstr, int len)
+{
+	char hex;
+	const char *src;
+	uint32_t val, digit;
+
+	val = 0;
+	src = hexstr;
+	while (src < hexstr + len) {
+		hex = *src++;
+		if ((hex < '0' || hex > '9')&&(hex < 'A' || hex > 'F')&&(hex < 'a' || hex > 'f'))
+			break;
+		if (hex >= '0' && hex <= '9')
+			digit = hex - '0';
+		else if (hex >= 'A' && hex <= 'F')
+			digit = hex - 'A' + 10;
+		else if (hex >= 'a' && hex <= 'f')
+			digit = hex - 'a' + 10;
+		val = (val << 4) + digit;
+	}
+	return val;
+}

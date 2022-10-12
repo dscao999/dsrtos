@@ -23,6 +23,9 @@ void task_slot_init(void)
 		task->stat = NONE;
 		task->bpri = BOT;
 		task->cpri = BOT;
+		task->acc_ticks = 0;
+		task->time_slice = 0;
+		task->timer = NULL;
 	}
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;
@@ -55,6 +58,8 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	task->psp = frame;
 	task->bpri = prival;
 	task->cpri = prival;
+	task->acc_ticks = 0;
+	task->time_slice = 0;
 	asm volatile ("dmb");
 	task->stat = READY;
 	*handle = task;
@@ -115,6 +120,8 @@ static void task_switch(struct Reg_Context *frame)
 
 	cur = current_task();
 	nxt = select_next_task(cur);
+	cur->acc_ticks += cur->time_slice;
+	cur->time_slice = 0;
 	if (cur == nxt)
 		return;
 	if (unlikely(nxt == NULL))
@@ -161,24 +168,12 @@ void __attribute__((naked)) PendSVC_Handler(void)
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
 
-static inline void arm_pendsvc()
-{
-	volatile uint32_t *int_ctrl;
-	uint32_t val;
-
-	int_ctrl = (volatile uint32_t *)NVIC_INT_CTRL;
-	val = *int_ctrl;
-	val |= (1 << 28);
-	*int_ctrl = val;
-}
-
 void SysTick_Handler(void)
 {
 	volatile uint32_t *scbreg;
 	uint32_t scbv;
-	int i, do_switch;
+	int i;
 	struct Task_Info *task, *nxt_task;
-	static struct Task_Info *prev_task = (void *)0;
 
 	scbreg = (volatile uint32_t *)NVIC_ST_CTRL;
 	scbv = *scbreg;
@@ -189,29 +184,35 @@ void SysTick_Handler(void)
 	if (__builtin_expect(sys_tick.tick_low == 0, 0))
 		sys_tick.tick_high += 1;
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		if (ktimers[i].task == (void *)0)
+		if (ktimers[i].task == NULL)
 			continue;
 		if (--ktimers[i].eticks == 0) {
 			ktimers[i].task->stat = READY;
-			ktimers[i].task = (void *)0;
+			ktimers[i].task->timer = NULL;
+			ktimers[i].task = NULL;
 		}
 	}
-	do_switch = 0;
 	task = current_task();
-	if (task == prev_task) {
-		if ((sys_tick.tick_low & 7)  == 0) {
-			do_switch = 1;
-			arm_pendsvc();
-		}
-	} else
-		prev_task = task;
-	if (do_switch == 0) {
+	task->time_slice += 1;
+	if (task->time_slice >= 5)
+		arm_pendsvc();
+	else {
 		nxt_task = select_next_task(task);
 		if (unlikely(nxt_task == (void *)0))
 			death_flash();
 		if (nxt_task != task && nxt_task->cpri < task->cpri)
 			arm_pendsvc();
 	}
+}
+
+void sched_yield(void)
+{
+	struct Task_Info *task;
+
+	task = current_task();
+	task->acc_ticks += task->time_slice;
+	task->time_slice = 0;
+	svc_switch();
 }
 
 void mdelay(uint32_t msec)
@@ -225,7 +226,7 @@ void mdelay(uint32_t msec)
 	expired = curtick + ticks;
 	if (ticks < 5) {
 		while (curtick < expired) {
-			sched_wait();
+			wait_interrupt();
 			curtick = (int)osticks->tick_low;
 		}
 	} else {
@@ -235,6 +236,7 @@ void mdelay(uint32_t msec)
 		}
 		ktimers[i].eticks = ticks;
 		task->stat = BLOCKED;
+		task->timer = ktimers + i;
 		asm volatile ("dmb");
 		ktimers[i].task = task;
 		sched_yield();
@@ -246,13 +248,84 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	struct Task_Info *task;
 
 	task = current_task();
-	klog("Task: %x ended\n", (uint32_t)task);
+	klog("Task: %x ended. Used sys ticks: %d\n", (uint32_t)task,
+			task->acc_ticks);
 	task->stat = NONE;
 	asm volatile ("dmb");
 	task->bpri = BOT;
 	task->cpri = BOT;
 	sched_yield();
 	do {
-		sched_wait();
+		wait_interrupt();
 	} while (1);
+}
+
+void task_info(const struct Task_Info *task)
+{
+	int i;
+	struct proc_stack *pstack;
+
+	for (i = 0; i < MAX_NUM_TASKS; i++) {
+		pstack = pstacks + i;
+		if ((void *)pstack == (void *)task)
+			break;
+	}
+	if (i == MAX_NUM_TASKS || task->stat == NONE) {
+		klog("No such task: %x\n", (uint32_t)task);
+		return;
+	}
+	klog("State: %d, Current Priority: %d, Base Priority: %d, Ticks: %d\n",
+		       (int)task->stat, (int)task->cpri, (int)task->bpri, task->acc_ticks);
+
+}
+
+int task_list(struct Task_Info *tasks[], int num)
+{
+	int i, seq;
+	struct proc_stack *pstack;
+	struct Task_Info *task;
+
+	for (i = 0, seq = 0; i < MAX_NUM_TASKS; i++) {
+		pstack = pstacks + i;
+		task = (struct Task_Info *)pstack;
+		if (task->stat == NONE)
+			continue;
+		if (seq < num)
+			tasks[seq++] = task;
+	}
+	return seq;
+}
+
+int task_del(struct Task_Info *task)
+{
+	struct Task_Info *itask;
+	struct proc_stack *pstack;
+	int i, retv;
+
+	retv = 0;
+	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
+	if (task == itask) {
+		klog("idle task: %x is reserved. Cannot be deleted\n", (uint32_t)itask);
+		return -2;
+	}
+	for (i = 0; i < MAX_NUM_TASKS; i++) {
+		pstack = pstacks + i;
+		itask = (struct Task_Info *)pstack;
+		if (task == itask)
+			break;
+	}
+	if (i == MAX_NUM_TASKS) {
+		retv = -3;
+		klog("No such task: %x\n", (uint32_t)task);
+	} else {
+		if (task->timer) {
+			task->timer->task = NULL;
+			task->timer = NULL;
+		}
+		task->stat = NONE;
+		task->bpri = BOT;
+		task->cpri = BOT;
+		klog("Task: %x deleted\n", (uint32_t)task);
+	}
+	return retv;
 }

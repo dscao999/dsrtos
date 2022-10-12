@@ -63,7 +63,7 @@ static inline void spin_lock(volatile int *lock, uint32_t lv)
 		;
 }
 
-static inline void sched_yield(void)
+static inline void svc_switch(void)
 {
 	uint32_t intrnum;
 
@@ -72,7 +72,7 @@ static inline void sched_yield(void)
 		asm volatile ("svc #0");
 }
 
-static inline void sched_wait(void)
+static inline void wait_interrupt(void)
 {
 	asm volatile ("wfi");
 }
@@ -86,6 +86,27 @@ static inline void start_systick(void)
         stval = *st_ctrl;
         stval |= NVIC_ST_CTRL_CLK_SRC|NVIC_ST_CTRL_INTEN|NVIC_ST_CTRL_ENABLE;
         *st_ctrl = stval;
+}
+
+static inline void arm_pendsvc()
+{
+	volatile uint32_t *int_ctrl;
+	uint32_t val;
+
+	int_ctrl = (volatile uint32_t *)NVIC_INT_CTRL;
+	val = *int_ctrl;
+	val |= (1 << 28);
+	*int_ctrl = val;
+}
+
+static inline void disable_interrupt(void)
+{
+	asm volatile ("cpsid  i");
+}
+
+static inline void enable_interrupt(void)
+{
+	asm volatile ("cpsie  i");
 }
 
 void switch_stack(void *mstack, void *pstack);

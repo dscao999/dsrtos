@@ -91,4 +91,6 @@ static inline void memset(char *dst, int val, int len)
                 *curchr++ = val;
 }
 
+uint32_t hexstr2num(const char *hexstr, int len);
+
 #endif  /* MISC_UTILS_DSCAO__ */

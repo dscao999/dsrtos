@@ -52,5 +52,4 @@ void main(void)
 	if (unlikely(retv == -1))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
-	klog("Task Reaper: %x\n", (uint32_t)task_reaper);
 }

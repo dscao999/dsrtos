@@ -3,16 +3,21 @@
 #include "kernel_internal.h"
 
 enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
-enum TASK_PRIORITY {TOP = 0, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
+enum TASK_PRIORITY {TOP = 1, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
 
 #define TASK_PRIO_MAXLOW	255
 
 #define NO_TASK_READY	1 /* no task in ready/run state */
 
+struct Task_Timer;
+
 struct Task_Info {
 	void *psp;
+	struct Task_Timer *timer;
+	uint32_t acc_ticks;
 	enum TASK_STATE stat;
 	enum TASK_PRIORITY cpri, bpri;
+	uint8_t time_slice;
 };
 
 struct Task_Timer {
@@ -39,6 +44,11 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param);
 
 void mdelay(uint32_t msecs);
+void sched_yield(void);
+
+void task_info(const struct Task_Info *task);
+int task_list(struct Task_Info *tasks[], int num);
+int task_del(struct Task_Info *task);
 
 void __attribute__((naked, noreturn)) task_reaper(void);
 
