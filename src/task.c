@@ -5,7 +5,13 @@
 #include "kernel.h"
 #include "task.h"
 
-//static const uint32_t TASK_MODULE = 0x50000;
+#define ENOMEM		1
+#define ENORTASK	2
+#define ETRESVD		3
+#define ENOSTASK	4
+
+static const uint32_t MODULE = 0x10000;
+
 #define NULL	((void *)0)
 #define unlikely(x)	__builtin_expect((x), 0)
 
@@ -47,8 +53,9 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 			break;
 	}
 	if (i == MAX_NUM_TASKS) {
-		klog("Failed to create new task: Too Many Tasks\n");
-		return -1;
+		klog("Failed to create new task, Too Many Tasks: %x.\n",
+				MODULE+ENOMEM);
+		return -(MODULE + ENOMEM);
 	}
 	frame = ((char *)(pstacks + i + 1)) - sizeof(struct Intr_Context);
 	intr_context_setup(frame, (uint32_t)task_entry, param);
@@ -88,8 +95,10 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 		} else if (task->cpri == pri)
 			candidate |= (1 << i);
 	}
-	if (candidate == 0)
-		return (void *)0;
+	if (candidate == 0) {
+		klog("No Runnable Task Exists: %x\n", MODULE + ENORTASK);
+		return NULL;
+	}
 
 	sel = (curseq + 1) & mask;
 	while ((candidate & (1 << sel)) == 0)
@@ -110,8 +119,6 @@ static inline void setpsp(void *psp)
 {
 	asm volatile ("msr psp, %0"::"r"(psp));
 }
-
-volatile uint32_t switched = 0;
 
 static void task_switch(struct Reg_Context *frame)
 {
@@ -138,7 +145,6 @@ static void task_switch(struct Reg_Context *frame)
 	*frame = *nxt_frame;
 	nxt_frame = nxt_frame + 1;
 	setpsp(nxt_frame);
-	switched += 1;
 }
 
 void __attribute__((naked)) SVC_Handler(void)
@@ -306,7 +312,7 @@ int task_del(struct Task_Info *task)
 	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
 	if (task == itask) {
 		klog("idle task: %x is reserved. Cannot be deleted\n", (uint32_t)itask);
-		return -2;
+		return -(MODULE + ETRESVD);
 	}
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		pstack = pstacks + i;
@@ -315,7 +321,7 @@ int task_del(struct Task_Info *task)
 			break;
 	}
 	if (i == MAX_NUM_TASKS) {
-		retv = -3;
+		retv = -(MODULE + ENOSTASK);
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
 		if (task->timer) {
