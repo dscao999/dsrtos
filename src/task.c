@@ -294,9 +294,9 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	} while (1);
 }
 
-void task_info(const struct Task_Info *task)
+static inline int is_task_valid(const struct Task_Info *task)
 {
-	int i;
+	int i, retv = 0;
 	struct proc_stack *pstack;
 
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
@@ -304,12 +304,20 @@ void task_info(const struct Task_Info *task)
 		if ((void *)pstack == (void *)task)
 			break;
 	}
-	if (i == MAX_NUM_TASKS || task->stat == NONE) {
+	if (i == MAX_NUM_TASKS || task->stat == NONE)
+		retv = 1;
+	return retv;
+}
+
+void task_info(const struct Task_Info *task)
+{
+	if (!is_task_valid(task)) {
 		klog("No such task: %x\n", (uint32_t)task);
 		return;
 	}
 	klog("State: %d, Current Priority: %d, Base Priority: %d, Ticks: %d\n",
-		       (int)task->stat, (int)task->cpri, (int)task->bpri, task->acc_ticks);
+		       (int)task->stat, (int)task->cpri, (int)task->bpri,
+		       task->acc_ticks);
 
 }
 
@@ -333,8 +341,7 @@ int task_list(struct Task_Info *tasks[], int num)
 int task_del(struct Task_Info *task)
 {
 	struct Task_Info *itask;
-	struct proc_stack *pstack;
-	int i, retv;
+	int retv;
 
 	retv = 0;
 	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
@@ -342,13 +349,7 @@ int task_del(struct Task_Info *task)
 		klog("idle task: %x is reserved. Cannot be deleted\n", (uint32_t)itask);
 		return -(MODULE + ETRESVD);
 	}
-	for (i = 0; i < MAX_NUM_TASKS; i++) {
-		pstack = pstacks + i;
-		itask = (struct Task_Info *)pstack;
-		if (task == itask)
-			break;
-	}
-	if (i == MAX_NUM_TASKS) {
+	if (!is_task_valid(task)) {
 		retv = -(MODULE + ENOSTASK);
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
