@@ -31,11 +31,11 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		task->stat = TASK_FREE;
-		task->bpri = PRIO_BOT;
+/*		task->bpri = PRIO_BOT;
 		task->cpri = PRIO_BOT;
 		task->acc_ticks = 0;
 		task->time_slice = 0;
-		task->timer = NULL;
+		task->timer = NULL;*/
 	}
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;

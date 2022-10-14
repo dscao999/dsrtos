@@ -40,6 +40,11 @@ void __attribute__((naked)) kernel_start(void)
 		death_flash();
 
 	task->stat = TASK_RUN;
+	task->bpri = PRIO_BOT;
+	task->cpri = PRIO_BOT;
+	task->acc_ticks = 0;
+	task->time_slice = 0;
+	task->timer = NULL;
 	switch_stack(mstack, pstack);
 	/* old stack switched, no local variable usable */
 	sched_yield();
