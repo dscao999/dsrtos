@@ -5,7 +5,7 @@
 
 #define NULL ((void *)0)
 
-enum TASK_STATE {NONE = 0, BLOCKED = 1, READY = 2, RUN = 3};
+enum TASK_STATE {TASK_FREE = 0, TASK_SUSPEND = 1, TASK_SLEEP = 2, TASK_READY = 3, TASK_RUN = 4};
 enum TASK_PRIORITY {TOP = 1, HIGH = 2, MID = 4, LOW = 8, BOT = 16};
 enum KTIMER_STATE {FREE = 0, USED = 1, ARMED = 3};
 

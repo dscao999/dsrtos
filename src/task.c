@@ -29,7 +29,7 @@ void task_slot_init(void)
 
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
-		task->stat = NONE;
+		task->stat = TASK_FREE;
 		task->bpri = BOT;
 		task->cpri = BOT;
 		task->acc_ticks = 0;
@@ -54,7 +54,7 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	*handle = (struct Task_Info *)0;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks + i);
-		if (task->stat == NONE)
+		if (task->stat == TASK_FREE)
 			break;
 	}
 	if (i == MAX_NUM_TASKS) {
@@ -72,8 +72,9 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	task->cpri = prival;
 	task->acc_ticks = 0;
 	task->time_slice = 0;
+	task->timer = NULL;
 	asm volatile ("dmb");
-	task->stat = READY;
+	task->stat = TASK_READY;
 	*handle = task;
 	return 0;
 }
@@ -90,7 +91,7 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 	pri = BOT;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
-		if (task->stat != READY && task->stat != RUN)
+		if (task->stat != TASK_READY && task->stat != TASK_RUN)
 			continue;
 		if (task == current)
 			curseq = i;
@@ -139,14 +140,14 @@ static void task_switch(struct Reg_Context *frame)
 	if (unlikely(nxt == NULL))
 		death_flash();
 
-	if (cur->stat == RUN)
-		cur->stat = READY;
+	if (cur->stat == TASK_RUN)
+		cur->stat = TASK_READY;
 	cur_frame = getpsp();
 	cur_frame = cur_frame - 1;
 	*cur_frame = *frame;
 	cur->psp = cur_frame;
 	nxt_frame = nxt->psp;
-	nxt->stat = RUN;
+	nxt->stat = TASK_RUN;
 	*frame = *nxt_frame;
 	nxt_frame = nxt_frame + 1;
 	setpsp(nxt_frame);
@@ -200,7 +201,7 @@ void SysTick_Handler(void)
 			continue;
 		timer = ktimers + i;
 		if (--timer->eticks == 0) {
-			timer->task->stat = READY;
+			timer->task->stat = TASK_READY;
 			timer->stat = USED;
 		}
 	}
@@ -268,7 +269,7 @@ void mdelay(uint32_t msec)
 			death_flash();
 		timer->eticks = ticks;
 		timer->task = task;
-		task->stat = BLOCKED;
+		task->stat = TASK_SLEEP;
 		task->timer = timer;
 		asm volatile ("dmb");
 		timer->stat = ARMED;
@@ -284,7 +285,7 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	task = current_task();
 	klog("Task: %x ended. Used sys ticks: %d\n", (uint32_t)task,
 			task->acc_ticks);
-	task->stat = NONE;
+	task->stat = TASK_FREE;
 	asm volatile ("dmb");
 	task->bpri = BOT;
 	task->cpri = BOT;
@@ -304,7 +305,7 @@ static inline int task_valid(const struct Task_Info *task)
 		if ((void *)pstack == (void *)task)
 			break;
 	}
-	if (i == MAX_NUM_TASKS || task->stat == NONE)
+	if (i == MAX_NUM_TASKS || task->stat == TASK_FREE)
 		retv = 0;
 	return retv;
 }
@@ -330,7 +331,7 @@ int task_list(struct Task_Info *tasks[], int num)
 	for (i = 0, seq = 0; i < MAX_NUM_TASKS; i++) {
 		pstack = pstacks + i;
 		task = (struct Task_Info *)pstack;
-		if (task->stat == NONE)
+		if (task->stat == TASK_FREE)
 			continue;
 		if (seq < num)
 			tasks[seq++] = task;
@@ -355,7 +356,7 @@ int task_del(struct Task_Info *task)
 	} else {
 		if (task->timer)
 			task->timer->stat = FREE;
-		task->stat = NONE;
+		task->stat = TASK_FREE;
 		task->bpri = BOT;
 		task->cpri = BOT;
 		klog("Task: %x deleted\n", (uint32_t)task);

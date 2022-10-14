@@ -39,7 +39,7 @@ void __attribute__((naked)) kernel_start(void)
 	if ((void *)task != (void *)(pstacks + MAX_NUM_TASKS - 1))
 		death_flash();
 
-	task->stat = RUN;
+	task->stat = TASK_RUN;
 	switch_stack(mstack, pstack);
 	/* old stack switched, no local variable usable */
 	sched_yield();
