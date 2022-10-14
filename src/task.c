@@ -94,7 +94,7 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 	mask = MAX_NUM_TASKS - 1;
 	candidate = 0;
 	curseq = -1;
-	pri = PRIO_BOT;
+	pri = PRIO_MAXLOW;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		if (task->stat != TASK_READY && task->stat != TASK_RUN)

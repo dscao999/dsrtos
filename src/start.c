@@ -40,8 +40,8 @@ void __attribute__((naked)) kernel_start(void)
 		death_flash();
 
 	task->stat = TASK_RUN;
-	task->bpri = PRIO_BOT;
-	task->cpri = PRIO_BOT;
+	task->bpri = PRIO_MAXLOW;
+	task->cpri = PRIO_MAXLOW;
 	task->acc_ticks = 0;
 	task->time_slice = 0;
 	task->timer = NULL;
