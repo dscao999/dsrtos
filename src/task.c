@@ -31,8 +31,8 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		task->stat = TASK_FREE;
-		task->bpri = BOT;
-		task->cpri = BOT;
+		task->bpri = PRIO_BOT;
+		task->cpri = PRIO_BOT;
 		task->acc_ticks = 0;
 		task->time_slice = 0;
 		task->timer = NULL;
@@ -94,7 +94,7 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 	mask = MAX_NUM_TASKS - 1;
 	candidate = 0;
 	curseq = -1;
-	pri = BOT;
+	pri = PRIO_BOT;
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		if (task->stat != TASK_READY && task->stat != TASK_RUN)
@@ -293,8 +293,8 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 			task->acc_ticks);
 	task->stat = TASK_FREE;
 	asm volatile ("dmb");
-	task->bpri = BOT;
-	task->cpri = BOT;
+	task->bpri = PRIO_BOT;
+	task->cpri = PRIO_BOT;
 	sched_yield();
 	do {
 		wait_interrupt();
@@ -363,8 +363,8 @@ int task_del(struct Task_Info *task)
 		if (task->timer)
 			task->timer->stat = TIMER_FREE;
 		task->stat = TASK_FREE;
-		task->bpri = BOT;
-		task->cpri = BOT;
+		task->bpri = PRIO_BOT;
+		task->cpri = PRIO_BOT;
 		klog("Task: %x deleted\n", (uint32_t)task);
 	}
 	return retv;
