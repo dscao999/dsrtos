@@ -138,6 +138,14 @@ void idle_task(void)
 				len += snprintf(cmd+len, sizeof(cmd)-len, ", %x", (uint32_t)tasks[i]);
 			cmd[len] = 0;
 			klog("Current Tasks: %s\n", cmd);
+		} else if (memcmp(cmd, "tsuspend ", 9) == 0) {
+			arg = cmd + 9;
+			task = (struct Task_Info *)hexstr2num(arg, len - 6);
+			task_suspend(task);
+		} else if (memcmp(cmd, "tresume ", 8) == 0) {
+			arg = cmd + 8;
+			task = (struct Task_Info *)hexstr2num(arg, len - 6);
+			task_resume(task);
 		}
 		msgpos = 0;
 	} while (errno == 0);

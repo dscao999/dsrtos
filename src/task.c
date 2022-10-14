@@ -8,7 +8,7 @@
 #define ENOMEM		1
 #define ENORTASK	2
 #define ETRESVD		3
-#define ENOSTASK	4
+#define ENOTASK		4
 #define ENOTIMER	5
 
 static const uint32_t MODULE = 0x10000;
@@ -31,11 +31,7 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks+i);
 		task->stat = TASK_FREE;
-/*		task->bpri = PRIO_BOT;
-		task->cpri = PRIO_BOT;
-		task->acc_ticks = 0;
-		task->time_slice = 0;
-		task->timer = NULL;*/
+		task->lock = 0;
 	}
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;
@@ -275,11 +271,15 @@ void mdelay(uint32_t msec)
 			death_flash();
 		timer->eticks = ticks;
 		timer->task = task;
+		spin_lock(&task->lock);
 		task->stat = TASK_SLEEP;
 		task->timer = timer;
-		asm volatile ("dmb");
+		un_lock(&task->lock);
 		timer->stat = TIMER_ARMED;
 		sched_yield();
+		spin_lock(&task->lock);
+		task->timer = NULL;
+		un_lock(&task->lock);
 		timer->stat = TIMER_FREE;
 	}
 }
@@ -357,15 +357,61 @@ int task_del(struct Task_Info *task)
 		return -(MODULE + ETRESVD);
 	}
 	if (!task_valid(task)) {
-		retv = -(MODULE + ENOSTASK);
+		retv = -(MODULE + ENOTASK);
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
 		if (task->timer)
 			task->timer->stat = TIMER_FREE;
 		task->stat = TASK_FREE;
-		task->bpri = PRIO_BOT;
-		task->cpri = PRIO_BOT;
 		klog("Task: %x deleted\n", (uint32_t)task);
 	}
+	return retv;
+}
+
+int task_suspend(struct Task_Info *task)
+{
+	int retv = 0;
+	struct Task_Info *itask;
+
+	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
+	if (task == itask) {
+		klog("idle task: %x is reserved. Cannot be suspended\n", (uint32_t)itask);
+		retv = -(MODULE + ETRESVD);
+		goto exit_10;
+	}
+	if (!task_valid(task)) {
+		klog("No such task: %x\n", (uint32_t)task);
+		retv = -(MODULE + ENOTASK);
+		goto exit_10;
+	}
+	if (task->stat == TASK_SUSPEND)
+		goto exit_10;
+	spin_lock(&task->lock);
+	if (task->stat == TASK_SLEEP)
+		task->timer->stat = TIMER_STOP;
+	task->last_stat = task->stat;
+	task->stat = TASK_SUSPEND;
+	un_lock(&task->lock);
+exit_10:
+	return retv;
+}
+
+int task_resume(struct Task_Info *task)
+{
+	int retv = 0;
+
+	if (!task_valid(task)) {
+		klog("No such task: %x\n", (uint32_t)task);
+		retv = -(MODULE + ENOTASK);
+		goto exit_10;
+	}
+	if (task->stat != TASK_SUSPEND)
+		goto exit_10;
+	spin_lock(&task->lock);
+	task->stat = task->last_stat;
+	if (task->stat == TASK_SLEEP)
+		task->timer->stat = TIMER_ARMED;
+	un_lock(&task->lock);
+exit_10:
 	return retv;
 }

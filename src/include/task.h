@@ -16,10 +16,11 @@ enum KTIMER_STATE {TIMER_FREE = 0, TIMER_STOP = 1, TIMER_ARMED = 3};
 struct Task_Timer;
 
 struct Task_Info {
+	volatile int lock;
 	void *psp;
 	struct Task_Timer *timer;
 	uint32_t acc_ticks;
-	enum TASK_STATE stat;
+	enum TASK_STATE stat, last_stat;
 	enum TASK_PRIORITY cpri, bpri;
 	uint8_t time_slice;
 };
@@ -82,6 +83,8 @@ void sched_yield(void);
 void task_info(const struct Task_Info *task);
 int task_list(struct Task_Info *tasks[], int num);
 int task_del(struct Task_Info *task);
+int task_suspend(struct Task_Info *task);
+int task_resume(struct Task_Info *task);
 
 void __attribute__((naked, noreturn)) task_reaper(void);
 
