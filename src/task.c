@@ -18,6 +18,7 @@ static const uint32_t MODULE = 0x10000;
 
 static struct Task_Timer ktimers[MAX_NUM_TIMERS];
 static volatile int ktimers_lock = 0;
+static volatile int task_slot_lock = 0;
 
 static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
 volatile const struct Sys_Tick * const osticks = &sys_tick;
@@ -39,9 +40,10 @@ void task_slot_init(void)
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
 		ktimers[i].eticks = 0;
 		ktimers[i].task = (void *)0;
-		ktimers[i].stat = FREE;
+		ktimers[i].stat = TIMER_FREE;
 	}
 	ktimers_lock = 0;
+	task_slot_lock = 0;
 }
 
 int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
@@ -52,11 +54,15 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	void *frame;
 
 	*handle = (struct Task_Info *)0;
+	spin_lock(&task_slot_lock);
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks + i);
 		if (task->stat == TASK_FREE)
 			break;
 	}
+	if (i < MAX_NUM_TASKS)
+		task->stat = TASK_SUSPEND;
+	un_lock(&task_slot_lock);
 	if (i == MAX_NUM_TASKS) {
 		klog("Failed to create new task, Too Many Tasks: %x.\n",
 				MODULE+ENOMEM);
@@ -197,12 +203,12 @@ void SysTick_Handler(void)
 	if (__builtin_expect(sys_tick.tick_low == 0, 0))
 		sys_tick.tick_high += 1;
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		if (ktimers[i].stat != ARMED)
+		if (ktimers[i].stat != TIMER_ARMED)
 			continue;
 		timer = ktimers + i;
 		if (--timer->eticks == 0) {
 			timer->task->stat = TASK_READY;
-			timer->stat = USED;
+			timer->stat = TIMER_STOP;
 		}
 	}
 	task = current_task();
@@ -235,16 +241,16 @@ static inline struct Task_Timer * get_ktimer(void)
 
 	spin_lock(&ktimers_lock);
 	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		if (ktimers[i].stat == FREE)
+		if (ktimers[i].stat == TIMER_FREE)
 			break;
 	}
+	if (i < MAX_NUM_TIMERS)
+		ktimers[i].stat = TIMER_STOP;
+	un_lock(&ktimers_lock);
 	if (i == MAX_NUM_TIMERS)
 		klog("No more task timers: %x\n", MODULE + ENOTIMER);
-	else {
-		ktimers[i].stat = USED;
+	else
 		timer = ktimers + i;
-	}
-	un_lock(&ktimers_lock);
 	return timer;
 }
 
@@ -272,9 +278,9 @@ void mdelay(uint32_t msec)
 		task->stat = TASK_SLEEP;
 		task->timer = timer;
 		asm volatile ("dmb");
-		timer->stat = ARMED;
+		timer->stat = TIMER_ARMED;
 		sched_yield();
-		timer->stat = FREE;
+		timer->stat = TIMER_FREE;
 	}
 }
 
@@ -355,7 +361,7 @@ int task_del(struct Task_Info *task)
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
 		if (task->timer)
-			task->timer->stat = FREE;
+			task->timer->stat = TIMER_FREE;
 		task->stat = TASK_FREE;
 		task->bpri = BOT;
 		task->cpri = BOT;

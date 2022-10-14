@@ -54,6 +54,8 @@ static inline int32_t try_lock(volatile int *lock, uint32_t lv)
 			     "\tstrexeq	%0, %2, [%1]\n"	\
 			     "\tclrexne\n"		\
 			      :"=r"(retv): "r"(lock), "r"(lv));
+	if (retv == 0)
+		asm volatile ("dmb");
 	return retv;
 }
 
