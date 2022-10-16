@@ -10,6 +10,7 @@
 #define ETRESVD		3
 #define ENOTASK		4
 #define ENOTIMER	5
+#define EINVAL		6
 
 static const uint32_t MODULE = 0x10000;
 
@@ -49,7 +50,20 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	struct Task_Info *task;
 	void *frame;
 
-	*handle = (struct Task_Info *)0;
+	*handle = NULL;
+	switch(prival) {
+		case PRIO_EMERGENCY:
+		case PRIO_TOP:
+		case PRIO_HIGH:
+		case PRIO_MID:
+		case PRIO_LOW:
+		case PRIO_BOT:
+		case PRIO_MAXLOW:
+			break;
+		default:
+			klog("No such task priority value: %d\n", prival);
+			return -(MODULE+EINVAL);
+	}
 	spin_lock(&task_slot_lock);
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		task = (struct Task_Info *)(pstacks + i);
