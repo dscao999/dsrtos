@@ -34,11 +34,8 @@ void task_slot_init(void)
 		task->stat = TASK_FREE;
 		task->lock = 0;
 	}
-	for (i = 0; i < MAX_NUM_TIMERS; i++) {
-		ktimers[i].eticks = 0;
-		ktimers[i].task = (void *)0;
+	for (i = 0; i < MAX_NUM_TIMERS; i++)
 		ktimers[i].stat = TIMER_FREE;
-	}
 	ktimers_lock = 0;
 	task_slot_lock = 0;
 }
