@@ -17,7 +17,12 @@ uint64_t __attribute__((leaf)) current_ticks(void);
 
 static inline uint32_t msec2tick(uint32_t msec)
 {
-	return (msec * TICK_HZ)/1000;
+	uint32_t ticks;
+
+	ticks = (msec * TICK_HZ) / 1000;
+	if (ticks == 0)
+		ticks++;
+	return ticks;
 }
 
 int klog(const char *fmt, ...);

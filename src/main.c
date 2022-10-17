@@ -45,11 +45,11 @@ void main(void)
 	ledspec.msecs = 500;
 	task_handle = (void *)0;
 	retv = create_task(&task_handle, PRIO_HIGH, led_flash, &ledspec);
-	if (unlikely(retv == -1))
+	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
-	retv = create_task(&task_handle, PRIO_HIGH, timed_hello, (void *)5);
-	if (unlikely(retv == -1))
+	retv = create_task(&task_handle, PRIO_BOT, timed_hello, (void *)5);
+	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
 }

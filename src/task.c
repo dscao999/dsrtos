@@ -11,6 +11,7 @@
 #define ENOTASK		4
 #define ENOTIMER	5
 #define EINVAL		6
+#define ENOTASK_SLOT	7
 
 static const uint32_t MODULE = 0x10000;
 
@@ -52,7 +53,7 @@ static inline int get_task_slot(void)
 			break;
 	}
 	if (i < MAX_NUM_TASKS)
-		task->stat = TASK_SUSPEND;
+		task->stat = TASK_STOP;
 	un_lock(&task_slot_lock);
 
 	if (i == MAX_NUM_TASKS) {
@@ -87,13 +88,10 @@ static struct Task_Info * setup_new_task(int slot, enum TASK_PRIORITY prival,
 	return task;
 }
 
-int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
-		void *(*task_entry)(void *), void *param)
+static inline int priority_valid(enum TASK_PRIORITY prival)
 {
-	int slot;
-	struct Task_Info *task;
+	int retv = 0;
 
-	*handle = NULL;
 	switch(prival) {
 		case PRIO_EMERGENCY:
 		case PRIO_TOP:
@@ -105,15 +103,9 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 			break;
 		default:
 			klog("No such task priority value: %d\n", prival);
-			return -(MODULE+EINVAL);
+			retv = -(MODULE+EINVAL);
 	}
-	slot = get_task_slot();
-	if (slot < 0)
-		return slot;
-	task = setup_new_task(slot, prival, task_entry, param);
-	task->stat = TASK_READY;
-	*handle = task;
-	return 0;
+	return retv;
 }
 
 struct Task_Info * select_next_task(struct Task_Info *current)
@@ -239,7 +231,7 @@ void SysTick_Handler(void)
 		timer = ktimers + i;
 		if (--timer->eticks == 0) {
 			timer->task->stat = TASK_READY;
-			timer->stat = TIMER_STOP;
+			timer->stat = TIMER_FREE;
 		}
 	}
 	task = current_task();
@@ -315,7 +307,6 @@ void mdelay(uint32_t msec)
 		spin_lock(&task->lock);
 		task->timer = NULL;
 		un_lock(&task->lock);
-		timer->stat = TIMER_FREE;
 	}
 }
 
@@ -446,5 +437,39 @@ int task_resume(struct Task_Info *task)
 		task->timer->stat = TIMER_ARMED;
 	un_lock(&task->lock);
 exit_10:
+	return retv;
+}
+
+int create_delay_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
+		void *(*task_entry)(void *), void *param, uint32_t msecs)
+{
+	int retv, slot;
+	struct Task_Timer *timer;
+	struct Task_Info *task;
+	uint32_t ticks;
+
+	*handle = NULL;
+	retv = priority_valid(prival);
+	if (retv < 0)
+		return retv;
+	ticks = msec2tick(msecs);
+	timer = get_ktimer();
+	if (!timer) {
+		retv = -(MODULE + ENOTIMER);
+		return retv;
+	}
+	slot = get_task_slot();
+	if (slot < 0) {
+		timer->stat = TIMER_FREE;
+		retv = -(MODULE + ENOTASK_SLOT);
+		return retv;
+	}
+	task = setup_new_task(slot, prival, task_entry, param);
+	task->stat = TASK_SLEEP;
+	task->timer = timer;
+	timer->task = task;
+	timer->eticks = ticks;
+	*handle = task;
+	timer->stat = TIMER_ARMED;
 	return retv;
 }

@@ -21,7 +21,8 @@ struct Task_Info {
 	struct Task_Timer *timer;
 	uint32_t acc_ticks;
 	uint32_t retv;
-	enum TASK_STATE stat, last_stat;
+	volatile enum TASK_STATE stat;
+	enum TASK_STATE last_stat;
 	enum TASK_PRIORITY cpri, bpri;
 	uint8_t time_slice;
 };
@@ -75,8 +76,14 @@ static inline void un_lock(volatile int *lock)
 
 void task_slot_init(void);
 
-int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
-		void *(*task_entry)(void *), void *param);
+int create_delay_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
+		void *(*task_entry)(void *), void *param, uint32_t msecs);
+static inline int create_task(struct Task_Info **handle,
+		enum TASK_PRIORITY prival,
+		void *(*task_entry)(void *), void *param)
+{
+	return create_delay_task(handle, prival, task_entry, param, 0);
+}
 
 void mdelay(uint32_t msecs);
 void sched_yield(void);
