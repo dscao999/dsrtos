@@ -64,12 +64,34 @@ static inline int get_task_slot(void)
 	return retv;
 }
 
+static struct Task_Info * setup_new_task(int slot, enum TASK_PRIORITY prival,
+		void * (*task_entry)(void *), void *param)
+{
+	struct Task_Info *task;
+	void *frame;
+
+	task = (struct Task_Info *)(pstacks + slot);
+	frame = ((char *)(pstacks + slot + 1)) - sizeof(struct Intr_Context);
+	intr_context_setup(frame, (uint32_t)task_entry, param);
+	((struct Intr_Context *)frame)->lr = (uint32_t)task_reaper;
+	frame = ((char *)frame) - sizeof(struct Reg_Context);
+	reg_context_setup(frame);
+	task->psp = frame;
+	task->bpri = prival;
+	task->cpri = prival;
+	task->acc_ticks = 0;
+	task->time_slice = 0;
+	task->timer = NULL;
+	asm volatile ("dmb");
+	task->stat = TASK_STOP;
+	return task;
+}
+
 int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param)
 {
 	int slot;
 	struct Task_Info *task;
-	void *frame;
 
 	*handle = NULL;
 	switch(prival) {
@@ -88,19 +110,7 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	slot = get_task_slot();
 	if (slot < 0)
 		return slot;
-	task = (struct Task_Info *)(pstacks + slot);
-	frame = ((char *)(pstacks + slot + 1)) - sizeof(struct Intr_Context);
-	intr_context_setup(frame, (uint32_t)task_entry, param);
-	((struct Intr_Context *)frame)->lr = (uint32_t)task_reaper;
-	frame = ((char *)frame) - sizeof(struct Reg_Context);
-	reg_context_setup(frame);
-	task->psp = frame;
-	task->bpri = prival;
-	task->cpri = prival;
-	task->acc_ticks = 0;
-	task->time_slice = 0;
-	task->timer = NULL;
-	asm volatile ("dmb");
+	task = setup_new_task(slot, prival, task_entry, param);
 	task->stat = TASK_READY;
 	*handle = task;
 	return 0;
