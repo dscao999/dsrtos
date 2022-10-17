@@ -36,6 +36,14 @@ void * timed_hello(void *param)
 	return (void *)0xceed;
 }
 
+void * delayed_output(void *param)
+{
+	char *mesg = param;
+
+	klog("%s\n", mesg);
+	return (void *)0xabcd;
+}
+
 void main(void)
 {
 	struct Task_Info *task_handle;
@@ -49,6 +57,11 @@ void main(void)
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
 	retv = create_task(&task_handle, PRIO_BOT, timed_hello, (void *)5);
+	if (unlikely(retv < 0))
+		death_flash();
+	klog("New Task Created: %x\n", (uint32_t)task_handle);
+	retv = create_delay_task(&task_handle, PRIO_TOP, delayed_output,
+			"It's wonderful", 6000);
 	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
