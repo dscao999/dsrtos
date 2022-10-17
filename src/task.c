@@ -303,8 +303,9 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	struct Task_Info *task;
 
 	task = current_task();
-	klog("Task: %x ended. Used sys ticks: %d\n", (uint32_t)task,
-			task->acc_ticks);
+	asm volatile ("str r0, [%0]"::"r"(&task->retv));
+	klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
+			(uint32_t)task, task->retv, task->acc_ticks);
 	task->stat = TASK_FREE;
 	asm volatile ("dmb");
 	task->bpri = PRIO_BOT;

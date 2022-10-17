@@ -33,7 +33,7 @@ void * timed_hello(void *param)
 		klog("Ticking: %u\n", tick++);
 		mdelay(sec*1000);
 	} while (tick < 10);
-	return (void *)0;
+	return (void *)0xceed;
 }
 
 void main(void)

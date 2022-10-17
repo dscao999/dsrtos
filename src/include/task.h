@@ -20,6 +20,7 @@ struct Task_Info {
 	void *psp;
 	struct Task_Timer *timer;
 	uint32_t acc_ticks;
+	uint32_t retv;
 	enum TASK_STATE stat, last_stat;
 	enum TASK_PRIORITY cpri, bpri;
 	uint8_t time_slice;
