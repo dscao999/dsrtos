@@ -48,7 +48,7 @@ void main(void)
 	if (unlikely(retv == -1))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
-	retv = create_task(&task_handle, PRIO_LOW, timed_hello, (void *)5);
+	retv = create_task(&task_handle, PRIO_HIGH, timed_hello, (void *)5);
 	if (unlikely(retv == -1))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);

@@ -40,10 +40,34 @@ void task_slot_init(void)
 	task_slot_lock = 0;
 }
 
+static inline int get_task_slot(void)
+{
+	int i, retv;
+	struct Task_Info *task;
+
+	spin_lock(&task_slot_lock);
+	for (i = 0; i < MAX_NUM_TASKS; i++) {
+		task = (struct Task_Info *)(pstacks + i);
+		if (task->stat == TASK_FREE)
+			break;
+	}
+	if (i < MAX_NUM_TASKS)
+		task->stat = TASK_SUSPEND;
+	un_lock(&task_slot_lock);
+
+	if (i == MAX_NUM_TASKS) {
+		klog("Failed to create new task, Too Many Tasks: %x.\n",
+				MODULE+ENOMEM);
+		retv = -(MODULE + ENOMEM);
+	} else
+		retv = i;
+	return retv;
+}
+
 int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 		void *(*task_entry)(void *), void *param)
 {
-	int i;
+	int slot;
 	struct Task_Info *task;
 	void *frame;
 
@@ -61,21 +85,11 @@ int create_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 			klog("No such task priority value: %d\n", prival);
 			return -(MODULE+EINVAL);
 	}
-	spin_lock(&task_slot_lock);
-	for (i = 0; i < MAX_NUM_TASKS; i++) {
-		task = (struct Task_Info *)(pstacks + i);
-		if (task->stat == TASK_FREE)
-			break;
-	}
-	if (i < MAX_NUM_TASKS)
-		task->stat = TASK_SUSPEND;
-	un_lock(&task_slot_lock);
-	if (i == MAX_NUM_TASKS) {
-		klog("Failed to create new task, Too Many Tasks: %x.\n",
-				MODULE+ENOMEM);
-		return -(MODULE + ENOMEM);
-	}
-	frame = ((char *)(pstacks + i + 1)) - sizeof(struct Intr_Context);
+	slot = get_task_slot();
+	if (slot < 0)
+		return slot;
+	task = (struct Task_Info *)(pstacks + slot);
+	frame = ((char *)(pstacks + slot + 1)) - sizeof(struct Intr_Context);
 	intr_context_setup(frame, (uint32_t)task_entry, param);
 	((struct Intr_Context *)frame)->lr = (uint32_t)task_reaper;
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
@@ -304,13 +318,10 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
 			(uint32_t)task, task->retv, task->acc_ticks);
 	task->stat = TASK_FREE;
-	asm volatile ("dmb");
-	task->bpri = PRIO_BOT;
-	task->cpri = PRIO_BOT;
 	sched_yield();
-	do {
+	do
 		wait_interrupt();
-	} while (1);
+	while (1);
 }
 
 static inline int task_valid(const struct Task_Info *task)
