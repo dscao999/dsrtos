@@ -61,7 +61,7 @@ void main(void)
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
 	retv = create_delay_task(&task_handle, PRIO_TOP, delayed_output,
-			"It's wonderful", 6000);
+			"It's wonderful", 11000);
 	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);

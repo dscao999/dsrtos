@@ -35,11 +35,9 @@ struct Task_Timer {
 
 static inline struct Task_Info * current_task(void)
 {
-	uint32_t curpsp, intrnum;
+	uint32_t curpsp;
 
-	asm volatile ("mrs %0, ipsr":"=r"(intrnum));
-	intrnum &= 0x01ff;
-	if (__builtin_expect(intrnum, 1))
+	if (__builtin_expect(in_interrupt(), 1))
 		asm volatile ("mrs %0, psp":"=r"(curpsp));
 	else
 		asm volatile ("mov %0, sp":"=r"(curpsp));

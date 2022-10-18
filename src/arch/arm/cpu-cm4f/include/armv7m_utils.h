@@ -59,12 +59,17 @@ static inline int32_t try_lock(volatile int *lock, uint32_t lv)
 	return retv;
 }
 
-static inline void svc_switch(void)
+static inline int in_interrupt(void)
 {
 	uint32_t intrnum;
 
 	asm volatile ("mrs %0, ipsr":"=r"(intrnum));
-	if (likely((intrnum & 0x01ff) == 0))
+	return (intrnum & 0x01ff);
+}
+
+static inline void svc_switch(void)
+{
+	if (likely(in_interrupt() == 0))
 		asm volatile ("svc #0");
 }
 
