@@ -59,6 +59,22 @@ static inline int32_t try_lock(volatile int *lock, uint32_t lv)
 	return retv;
 }
 
+static inline int comp_swap_uint32(uint32_t *dst, uint32_t *oval, uint32_t nval)
+{
+	uint32_t flag, retv;
+
+	flag = 1;
+	asm volatile (	"ldrex		%0, [%2]\n"	\
+			"\tcmp		%0, %4\n"	\
+			"\tite		eq\n"		\
+			"\tstrexeq	%1, %3, [%2]\n"	\
+			"\tclrexne\n"			\
+			:"=r"(retv), "=r"(flag)		\
+			:"r"(dst), "r"(nval), "r"(*oval));
+	*oval = retv;
+	return flag;
+}
+
 static inline int in_interrupt(void)
 {
 	uint32_t intrnum;
