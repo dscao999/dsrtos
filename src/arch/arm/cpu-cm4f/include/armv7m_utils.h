@@ -85,8 +85,10 @@ static inline int in_interrupt(void)
 
 static inline void svc_switch(int nxt_stat)
 {
-	if (likely(in_interrupt() == 0))
-		asm volatile ("svc #0");
+	if (likely(in_interrupt() == 0)) {
+		asm volatile (  "mov r0, %0\n"	\
+				"\tsvc #0"::"r"(nxt_stat));
+	}
 }
 
 static inline void wait_interrupt(void)

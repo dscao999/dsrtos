@@ -131,7 +131,7 @@ struct Task_Info * select_next_task(struct Task_Info *current)
 			candidate |= (1 << i);
 	}
 	if (candidate == 0) {
-		klog("No Runnable Task Exists: %x\n", MODULE + ENORTASK);
+		klog("No Runnable Task Exists: %x, current state: %x\n", MODULE + ENORTASK, (int)current->stat);
 		return NULL;
 	}
 
@@ -155,12 +155,13 @@ static inline void setpsp(void *psp)
 	asm volatile ("msr psp, %0"::"r"(psp));
 }
 
-static void task_switch(struct Reg_Context *frame)
+static void task_switch(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 {
 	struct Task_Info *nxt, *cur;
 	struct Reg_Context *cur_frame, *nxt_frame;
 
 	cur = current_task();
+	cur->stat = nxt_stat;
 	nxt = select_next_task(cur);
 	cur->acc_ticks += cur->time_slice;
 	cur->time_slice = 0;
@@ -187,13 +188,15 @@ void __attribute__((naked)) SVC_Handler(void)
 	struct Reg_Context *frame;
 	struct Intr_Context *intr_frame;
 	uint16_t inst;
+	uint32_t arg1;
 
 	asm volatile   ("push {r4-r11, lr}\n"	\
 			"\tmov %0, sp\n":"=r"(frame));
 	intr_frame = getpsp();
+	arg1 = intr_frame->r0;
 	inst = *((uint16_t *)(intr_frame->retadr - 2));
 	if ((inst & 0x0ff) == 0)
-		task_switch(frame);
+		task_switch(frame, arg1);
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
@@ -201,10 +204,12 @@ void __attribute__((naked)) SVC_Handler(void)
 void __attribute__((naked)) PendSVC_Handler(void)
 {
 	struct Reg_Context *frame;
+	struct Task_Info *me;
 
 	asm volatile   ("push {r4-r11, lr}\n"	\
 			"\tmov %0, sp\n":"=r"(frame));
-	task_switch(frame);
+	me = current_task();
+	task_switch(frame, me->stat);
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
@@ -230,8 +235,11 @@ void SysTick_Handler(void)
 			continue;
 		timer = ktimers + i;
 		if (--timer->eticks == 0) {
-			timer->task->stat = TASK_READY;
-			timer->stat = TIMER_FREE;
+			if (timer->task->stat == TASK_SLEEP) {
+				timer->task->stat = TASK_READY;
+				timer->stat = TIMER_FREE;
+			} else
+				timer->eticks += 1;
 		}
 	}
 	task = current_task();
@@ -298,15 +306,10 @@ void mdelay(uint32_t msec)
 			death_flash();
 		timer->eticks = ticks;
 		timer->task = task;
-		spin_lock(&task->lock);
-		task->stat = TASK_SLEEP;
 		task->timer = timer;
-		un_lock(&task->lock);
 		timer->stat = TIMER_ARMED;
-		sched_yield();
-		spin_lock(&task->lock);
+		sched_yield_specific(TASK_SLEEP);
 		task->timer = NULL;
-		un_lock(&task->lock);
 	}
 }
 
@@ -318,8 +321,7 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	asm volatile ("str r0, [%0]"::"r"(&task->retv));
 	klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
 			(uint32_t)task, task->retv, task->acc_ticks);
-	task->stat = TASK_FREE;
-	sched_yield();
+	sched_yield_specific(TASK_FREE);
 	do
 		wait_interrupt();
 	while (1);
