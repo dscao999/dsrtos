@@ -247,14 +247,14 @@ void SysTick_Handler(void)
 	}
 }
 
-void sched_yield(void)
+void sched_yield_specific(enum TASK_STATE nxt_stat)
 {
 	struct Task_Info *task;
 
 	task = current_task();
 	task->acc_ticks += task->time_slice;
 	task->time_slice = 0;
-	svc_switch();
+	svc_switch(nxt_stat);
 }
 
 static inline struct Task_Timer * get_ktimer(void)

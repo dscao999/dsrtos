@@ -83,7 +83,7 @@ static inline int in_interrupt(void)
 	return (intrnum & 0x01ff);
 }
 
-static inline void svc_switch(void)
+static inline void svc_switch(int nxt_stat)
 {
 	if (likely(in_interrupt() == 0))
 		asm volatile ("svc #0");
