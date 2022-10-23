@@ -59,7 +59,7 @@ static inline int32_t try_lock(volatile int *lock, uint32_t lv)
 	return retv;
 }
 
-static inline int comp_swap_uint32(uint32_t *dst, uint32_t *oval, uint32_t nval)
+static inline int try_compswap(uint32_t *dst, uint32_t *oval, uint32_t nval)
 {
 	uint32_t flag, retv;
 
@@ -86,7 +86,7 @@ static inline int in_interrupt(void)
 static inline void svc_switch(int nxt_stat)
 {
 	if (likely(in_interrupt() == 0)) {
-		asm volatile (  "mov r0, %0\n"	\
+		asm (  "mov r0, %0\n"	\
 				"\tsvc #0"::"r"(nxt_stat));
 	}
 }
