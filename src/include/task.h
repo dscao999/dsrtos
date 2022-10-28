@@ -72,10 +72,7 @@ void mdelay(uint32_t msecs);
 void sched_yield_specific(enum TASK_STATE nxt_stat);
 static inline void sched_yield(void)
 {
-	struct Task_Info *me;
-
-	me = current_task();
-	sched_yield_specific(me->stat);
+	sched_yield_specific(TASK_READY);
 }
 
 void task_info(const struct Task_Info *task);

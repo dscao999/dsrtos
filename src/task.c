@@ -165,8 +165,10 @@ static void task_switch(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 	nxt = select_next_task(cur);
 	cur->acc_ticks += cur->time_slice;
 	cur->time_slice = 0;
-	if (cur == nxt)
+	if (cur == nxt) {
+		cur->stat = TASK_RUN;
 		return;
+	}
 	if (unlikely(nxt == NULL))
 		death_flash();
 

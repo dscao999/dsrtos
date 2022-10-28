@@ -44,7 +44,8 @@ static inline void reg_context_setup(void *frame)
 	memset(frame, 0, sizeof(struct Reg_Context));
 }
 
-static inline int try_compswap(volatile uint32_t *dst, uint32_t *oval, uint32_t nval)
+static inline int try_compswap(volatile uint32_t *dst, uint32_t *oval,
+		uint32_t nval)
 {
 	uint32_t flag;
 	uint32_t retv;
@@ -87,7 +88,7 @@ static inline void svc_switch(int nxt_stat)
 {
 	if (likely(in_interrupt() == 0)) {
 		asm (  "mov r0, %0\n"	\
-				"\tsvc #0"::"r"(nxt_stat));
+			"\tsvc #0"::"r"(nxt_stat));
 	}
 }
 
