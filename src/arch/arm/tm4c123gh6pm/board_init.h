@@ -12,7 +12,7 @@ struct DMATable {
 
 extern struct DMATable udma_table[];
 extern struct CirBuf256 * const uart0_buf;
-extern volatile int uart0_lock;
+extern volatile uint32_t uart0_lock;
 
 void UART0_Handler(void);
 void uDMAError_Handler(void);

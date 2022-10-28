@@ -28,7 +28,7 @@ static void IntDefaultHandler(void)
 }
 
 static struct CirBuf256 uart0_buffer;
-volatile int uart0_lock;
+volatile uint32_t uart0_lock;
 struct CirBuf256 * const uart0_buf = &uart0_buffer;
 
 

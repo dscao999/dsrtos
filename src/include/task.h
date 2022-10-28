@@ -16,7 +16,7 @@ enum KTIMER_STATE {TIMER_FREE = 0, TIMER_STOP = 1, TIMER_ARMED = 3};
 struct Task_Timer;
 
 struct Task_Info {
-	volatile int lock;
+	volatile uint32_t lock;
 	void *psp;
 	struct Task_Timer *timer;
 	uint32_t acc_ticks;
@@ -44,24 +44,9 @@ static inline struct Task_Info * current_task(void)
 	return (struct Task_Info *)((curpsp - 1) & PSTACK_MASK);
 }
 
-static inline void spin_lock(volatile int *lock)
-{
-	int status;
-	struct Task_Info *holder, *waiter;
+void spin_lock(volatile uint32_t *lock);
 
-	waiter = current_task();
-	status = try_lock(lock, (uint32_t)waiter);
-	while (status != 0) {
-		if (status != 1) {
-			holder = (struct Task_Info *)status;
-			if (waiter->cpri < holder->cpri)
-				holder->cpri = waiter->cpri;
-		}
-		status = try_lock(lock, (uint32_t)waiter);
-	}
-}
-
-static inline void un_lock(volatile int *lock)
+static inline void un_lock(volatile uint32_t *lock)
 {
 	struct Task_Info *me;
 

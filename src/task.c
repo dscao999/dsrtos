@@ -19,8 +19,8 @@ static const uint32_t MODULE = 0x10000;
 #define unlikely(x)	__builtin_expect((x), 0)
 
 static struct Task_Timer ktimers[MAX_NUM_TIMERS];
-static volatile int ktimers_lock = 0;
-static volatile int task_slot_lock = 0;
+static volatile uint32_t ktimers_lock = 0;
+static volatile uint32_t task_slot_lock = 0;
 
 static struct Sys_Tick sys_tick = {.tick_low = 0, .tick_high = 0};
 volatile const struct Sys_Tick * const osticks = &sys_tick;
@@ -474,4 +474,21 @@ int create_delay_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	*handle = task;
 	timer->stat = TIMER_ARMED;
 	return retv;
+}
+
+void spin_lock(volatile uint32_t *lock)
+{
+	int status;
+	struct Task_Info *holder, *waiter;
+
+	waiter = current_task();
+	status = try_lock(lock, (uint32_t)waiter);
+	while (status != 0) {
+		if (status != 1) {
+			holder = (struct Task_Info *)status;
+			if (waiter->cpri < holder->cpri)
+				holder->cpri = waiter->cpri;
+		}
+		status = try_lock(lock, (uint32_t)waiter);
+	}
 }

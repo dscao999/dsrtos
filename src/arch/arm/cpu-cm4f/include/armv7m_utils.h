@@ -44,35 +44,35 @@ static inline void reg_context_setup(void *frame)
 	memset(frame, 0, sizeof(struct Reg_Context));
 }
 
-static inline int32_t try_lock(volatile int *lock, uint32_t lv)
+static inline int try_compswap(volatile uint32_t *dst, uint32_t *oval, uint32_t nval)
 {
+	uint32_t flag;
 	uint32_t retv;
 
-	asm volatile (       "ldrex	%0,[%1]\n"	\
-			     "\tcmp	%0, #0\n"	\
-			     "\tite	eq\n"		\
-			     "\tstrexeq	%0, %2, [%1]\n"	\
-			     "\tclrexne\n"		\
-			      :"=r"(retv): "r"(lock), "r"(lv));
-	if (retv == 0)
-		asm volatile ("dmb");
-	return retv;
-}
-
-static inline int try_compswap(uint32_t *dst, uint32_t *oval, uint32_t nval)
-{
-	uint32_t flag, retv;
-
 	flag = 1;
-	asm volatile (	"ldrex		%0, [%2]\n"	\
-			"\tcmp		%0, %4\n"	\
-			"\tite		eq\n"		\
-			"\tstrexeq	%1, %3, [%2]\n"	\
+	asm volatile (	"ldrex	%0, [%2]\n"	\
+			"\tcmp	%0, %4\n"	\
+			"\tite	eq\n"		\
+			"\tstrexeq %1, %3, [%2]\n"	\
 			"\tclrexne\n"			\
 			:"=r"(retv), "=r"(flag)		\
-			:"r"(dst), "r"(nval), "r"(*oval));
+			:"r"(dst), "r"(nval), "r"(*oval), "1"(flag));
 	*oval = retv;
 	return flag;
+}
+
+static inline int32_t try_lock(volatile uint32_t *lock, uint32_t lv)
+{
+	uint32_t flag, retv, expect;
+
+	retv = 0;
+	expect = 0;
+	flag = try_compswap(lock, &expect, lv);
+	if (flag == 0)
+		asm volatile ("dmb");
+	else
+		retv = expect == 0? flag : expect;
+	return retv;
 }
 
 static inline int in_interrupt(void)
