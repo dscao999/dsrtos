@@ -185,6 +185,12 @@ static void task_switch(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 	setpsp(nxt_frame);
 }
 
+static inline void setup_timer(struct Task_Timer *timer)
+{
+	timer->task->stat = TASK_SLEEP;
+	timer->stat = TIMER_ARMED;
+}
+
 void __attribute__((naked)) SVC_Handler(void)
 {
 	struct Reg_Context *frame;
@@ -197,8 +203,18 @@ void __attribute__((naked)) SVC_Handler(void)
 	intr_frame = getpsp();
 	arg1 = intr_frame->r0;
 	inst = *((uint16_t *)(intr_frame->retadr - 2));
-	if ((inst & 0x0ff) == 0)
+	switch(inst & 0x0ff) {
+	case 0:
 		task_switch(frame, arg1);
+		break;
+	case 1:
+		setup_timer((struct Task_Timer *)arg1);
+		arm_pendsvc();
+		break;
+	default:
+		klog("No such svc call number: %d\n", (int)(inst & 0x0ff));
+		death_flash();
+	}
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
@@ -237,11 +253,11 @@ void SysTick_Handler(void)
 			continue;
 		timer = ktimers + i;
 		if (--timer->eticks == 0) {
-			if (timer->task->stat == TASK_SLEEP) {
-				timer->task->stat = TASK_READY;
+			if (likely(timer->task->stat == TASK_SLEEP)) {
 				timer->stat = TIMER_FREE;
-			} else
-				timer->eticks += 1;
+				timer->task->timer = NULL;
+				timer->task->stat = TASK_READY;
+			}
 		}
 	}
 	task = current_task();
@@ -293,7 +309,6 @@ void mdelay(uint32_t msec)
 	struct Task_Info *task;
 	struct Task_Timer *timer;
 
-	task = current_task();
 	ticks = (int)msec2tick(msec);
 	curtick = (int)osticks->tick_low;
 	expired = curtick + ticks;
@@ -303,15 +318,15 @@ void mdelay(uint32_t msec)
 			curtick = (int)osticks->tick_low;
 		}
 	} else {
+		task = current_task();
 		timer = get_ktimer();
 		if (unlikely(timer == NULL))
 			death_flash();
 		timer->eticks = ticks;
 		timer->task = task;
 		task->timer = timer;
-		timer->stat = TIMER_ARMED;
-		sched_yield_specific(TASK_SLEEP);
-		task->timer = NULL;
+		asm volatile ("mov r0, %0\n"	\
+				"svc #1"::"r"(timer));
 	}
 }
 
@@ -388,8 +403,6 @@ int task_del(struct Task_Info *task)
 		retv = -(MODULE + ENOTASK);
 		klog("No such task: %x\n", (uint32_t)task);
 	} else {
-		if (task->timer)
-			task->timer->stat = TIMER_FREE;
 		task->stat = TASK_FREE;
 		klog("Task: %x deleted\n", (uint32_t)task);
 	}
