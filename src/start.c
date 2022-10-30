@@ -17,7 +17,20 @@ typedef void (*init_func_t)(void);
 extern init_func_t __init_start[];
 extern init_func_t __init_end[];
 
-void idle_task(void);
+void * uart0_task(void *param);
+
+static void create_uart0_task(void)
+{
+	int retv;
+	struct Task_Info *task;
+
+	retv = create_task(&task, PRIO_BOT, uart0_task, NULL);
+	if (retv != 0) {
+		klog("Cannot create uart0 task: %x\n", retv);
+		death_flash();
+	} else
+		klog("UART0 Task created: %x\n", (uint32_t)task);
+}
 
 void __attribute__((naked)) kernel_start(void)
 {
@@ -52,7 +65,10 @@ void __attribute__((naked)) kernel_start(void)
 
 	main();
 
-	idle_task();
+	create_uart0_task();
+	do
+		wait_interrupt();
+	while (1);
 }
 
 static inline int exception_priority(int expnum)
@@ -103,7 +119,7 @@ static int copy_cmd(char *cmd, const char *rawstr, int len)
 }
 
 static char conin[256], cmd[256];
-void idle_task(void)
+void * uart0_task(void *param)
 {
 	int msgpos, len, num_tasks, i;
 	const char *arg;
@@ -150,4 +166,5 @@ void idle_task(void)
 		msgpos = 0;
 	} while (errno == 0);
 	death_flash();
+	return NULL;
 }
