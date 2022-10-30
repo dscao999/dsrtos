@@ -12,6 +12,7 @@
 #define ENOTIMER	5
 #define EINVAL		6
 #define ENOTASK_SLOT	7
+#define EBUSY		8
 
 static const uint32_t MODULE = 0x10000;
 
@@ -155,7 +156,7 @@ static inline void setpsp(void *psp)
 	asm volatile ("msr psp, %0"::"r"(psp));
 }
 
-static void task_switch(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
+static void task_switch_isr(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 {
 	struct Task_Info *nxt, *cur;
 	struct Reg_Context *cur_frame, *nxt_frame;
@@ -185,38 +186,10 @@ static void task_switch(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 	setpsp(nxt_frame);
 }
 
-static inline void setup_timer(struct Task_Timer *timer)
+static inline void setup_timer_isr(struct Task_Timer *timer)
 {
 	timer->task->stat = TASK_SLEEP;
 	timer->stat = TIMER_ARMED;
-}
-
-void __attribute__((naked)) SVC_Handler(void)
-{
-	struct Reg_Context *frame;
-	struct Intr_Context *intr_frame;
-	uint16_t inst;
-	uint32_t arg1;
-
-	asm volatile   ("push {r4-r11, lr}\n"	\
-			"\tmov %0, sp\n":"=r"(frame));
-	intr_frame = getpsp();
-	arg1 = intr_frame->r0;
-	inst = *((uint16_t *)(intr_frame->retadr - 2));
-	switch(inst & 0x0ff) {
-	case 0:
-		task_switch(frame, arg1);
-		break;
-	case 1:
-		setup_timer((struct Task_Timer *)arg1);
-		arm_pendsvc();
-		break;
-	default:
-		klog("No such svc call number: %d\n", (int)(inst & 0x0ff));
-		death_flash();
-	}
-	asm volatile   ("mov sp, %0\n"	\
-			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
 
 void __attribute__((naked)) PendSVC_Handler(void)
@@ -227,7 +200,7 @@ void __attribute__((naked)) PendSVC_Handler(void)
 	asm volatile   ("push {r4-r11, lr}\n"	\
 			"\tmov %0, sp\n":"=r"(frame));
 	me = current_task();
-	task_switch(frame, me->stat);
+	task_switch_isr(frame, me->stat);
 	asm volatile   ("mov sp, %0\n"	\
 			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }
@@ -306,7 +279,7 @@ static inline struct Task_Timer * get_ktimer(void)
 void mdelay(uint32_t msec)
 {
 	int ticks, curtick, expired;
-	struct Task_Info *task;
+	struct Task_Info *me;
 	struct Task_Timer *timer;
 
 	ticks = (int)msec2tick(msec);
@@ -318,13 +291,13 @@ void mdelay(uint32_t msec)
 			curtick = (int)osticks->tick_low;
 		}
 	} else {
-		task = current_task();
+		me = current_task();
 		timer = get_ktimer();
 		if (unlikely(timer == NULL))
 			death_flash();
 		timer->eticks = ticks;
-		timer->task = task;
-		task->timer = timer;
+		timer->task = me;
+		me->timer = timer;
 		asm volatile ("mov r0, %0\n"	\
 				"svc #1"::"r"(timer));
 	}
@@ -427,6 +400,12 @@ int task_suspend(struct Task_Info *task)
 	}
 	if (task->stat == TASK_SUSPEND)
 		goto exit_10;
+	if (task->stat == TASK_WEVENT) {
+		retv = -(MODULE + EINVAL);
+		klog("Task %x in wait for event state, cannot be suspended\n",
+				(uint32_t)task);
+		goto exit_10;
+	}
 	spin_lock(&task->lock);
 	if (task->stat == TASK_SLEEP)
 		task->timer->stat = TIMER_STOP;
@@ -506,4 +485,99 @@ void spin_lock(volatile uint32_t *lock)
 		}
 		status = try_lock(lock, (uint32_t)waiter);
 	}
+}
+
+void complete(struct Completion *cp)
+{
+	int status;
+	uint32_t mark;
+	struct Task_Info *waiter;
+
+	cp->done = 1;
+	waiter = NULL;
+	mark = in_interrupt();
+	if (!mark)
+		mark = ((uint32_t)current_task())|0x0ff;
+	do
+		status = try_compswap((uint32_t *)&cp->waiter,
+				(uint32_t *)&waiter, mark);
+	while (status == 1);
+	if (!task_valid(waiter))
+		return;
+	if (waiter->cp == cp && waiter->stat == TASK_WEVENT)
+		waiter->stat = TASK_READY;
+}
+
+int wait_for_complete(struct Completion *cp)
+{
+	int retv = 0, status;
+	struct Task_Info *me, *waiter;
+
+	if (cp->done == 1)
+		return retv;
+
+	waiter = NULL;
+	me = current_task();
+	me->cp = cp;
+	do
+		status = try_compswap((uint32_t *)&cp->waiter,
+				(uint32_t *)&waiter, (uint32_t)me);
+	while (status == 1 && waiter == NULL);
+	if (waiter) {
+	       	if (task_valid(waiter)) {
+			retv = -(MODULE + EBUSY);
+			klog("struct Completion %x is busy: %x\n", (uint32_t)cp, -retv);
+		}
+	} else {
+			asm volatile (  "mov r0, %0\n"		\
+					"\tsvc #2\n"::"r"(me));
+	}
+	me->cp = NULL;
+	return retv;
+}
+
+static int wait_event_isr(struct Task_Info *waiter)
+{
+	int retv;
+
+	retv = 0;
+	disable_interrupt();
+	if (waiter->cp->done != 1)
+		waiter->stat = TASK_WEVENT;
+	enable_interrupt();
+	return retv;
+}
+
+void __attribute__((naked)) SVC_Handler(void)
+{
+	struct Reg_Context *frame;
+	struct Intr_Context *intr_frame;
+	uint16_t inst;
+	uint32_t arg1;
+	int retv = 0;
+
+	asm volatile   ("push {r4-r11, lr}\n"	\
+			"\tmov %0, sp\n":"=r"(frame));
+	intr_frame = getpsp();
+	arg1 = intr_frame->r0;
+	inst = *((uint16_t *)(intr_frame->retadr - 2));
+	switch(inst & 0x0ff) {
+	case 0: /* task switch */
+		task_switch_isr(frame, arg1);
+		break;
+	case 1:  /* setup delay timer */
+		setup_timer_isr((struct Task_Timer *)arg1);
+		arm_pendsvc();
+		break;
+	case 2:
+		wait_event_isr((struct Task_Info *)arg1);
+		arm_pendsvc();
+		break;
+	default:
+		klog("No such svc call number: %d\n", (int)(inst & 0x0ff));
+		death_flash();
+	}
+	intr_frame->r0 = (uint32_t)retv;
+	asm volatile   ("mov sp, %0\n"	\
+			"\tpop {r4-r11, pc}\n"::"r"(frame));
 }

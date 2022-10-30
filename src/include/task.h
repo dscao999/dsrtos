@@ -6,7 +6,7 @@
 #define NULL ((void *)0)
 
 enum TASK_STATE {TASK_FREE = 0, TASK_STOP = 1, TASK_SUSPEND = 2, TASK_SLEEP = 3,
-	TASK_READY = 4, TASK_RUN = 5};
+	TASK_WEVENT = 4, TASK_READY = 5, TASK_RUN = 6};
 enum TASK_PRIORITY {PRIO_EMERGENCY = 0, PRIO_TOP = 1, PRIO_HIGH = 2,
 	PRIO_MID = 4, PRIO_LOW = 8, PRIO_BOT = 16, PRIO_MAXLOW = 255};
 enum KTIMER_STATE {TIMER_FREE = 0, TIMER_STOP = 1, TIMER_ARMED = 3};
@@ -14,11 +14,13 @@ enum KTIMER_STATE {TIMER_FREE = 0, TIMER_STOP = 1, TIMER_ARMED = 3};
 #define NO_TASK_READY	1 /* no task in ready/run state */
 
 struct Task_Timer;
+struct Completion;
 
 struct Task_Info {
 	volatile uint32_t lock;
 	void *psp;
 	struct Task_Timer *timer;
+	struct Completion *cp;
 	uint32_t acc_ticks;
 	uint32_t retv;
 	volatile enum TASK_STATE stat;
@@ -32,6 +34,17 @@ struct Task_Timer {
 	int eticks;
 	volatile enum KTIMER_STATE stat;
 };
+
+struct Completion {
+	volatile uint32_t done;
+	struct Task_Info *waiter;
+};
+
+static inline void completion_init(struct Completion *cp)
+{
+	cp->waiter = NULL;
+	cp->done = 0;
+}
 
 static inline struct Task_Info * current_task(void)
 {
@@ -80,6 +93,9 @@ int task_list(struct Task_Info *tasks[], int num);
 int task_del(struct Task_Info *task);
 int task_suspend(struct Task_Info *task);
 int task_resume(struct Task_Info *task);
+
+void complete(struct Completion *cp);
+void wait_for_completion(struct Completion *cp);
 
 void __attribute__((naked, noreturn)) task_reaper(void);
 
