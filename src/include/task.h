@@ -95,7 +95,7 @@ int task_suspend(struct Task_Info *task);
 int task_resume(struct Task_Info *task);
 
 void complete(struct Completion *cp);
-void wait_for_completion(struct Completion *cp);
+int wait_for_completion(struct Completion *cp);
 
 void __attribute__((naked, noreturn)) task_reaper(void);
 

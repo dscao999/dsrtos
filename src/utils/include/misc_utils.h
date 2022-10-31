@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+#define likely(x)	__builtin_expect((x), 1)
+#define unlikely(x)	__builtin_expect((x), 0)
+
 struct CirBuf256 {
 	uint8_t head;
 	uint8_t tail;

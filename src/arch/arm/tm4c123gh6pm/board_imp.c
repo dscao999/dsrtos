@@ -118,6 +118,10 @@ void uDMAError_Handler(void)
 		;
 }
 
+void __attribute__((weak)) uart0_trigger(void)
+{
+}
+
 void UART0_Handler(void)
 {
 	uint32_t intr_val, datval, flag, dma_mask, dmactl;
@@ -137,6 +141,8 @@ void UART0_Handler(void)
 		while ((flag & UART_FR_RXFE) == 0) {
 			datval = *uart_dr;
 			cirbuf_put(uart0_buf, datval);
+			if (unlikely(datval == '\r'))
+				uart0_trigger();
 			flag = *uart_fr;
 			if ((flag & (UART_FR_TXFF)) == 0)
 				*uart_dr = datval;

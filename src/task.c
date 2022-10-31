@@ -508,7 +508,7 @@ void complete(struct Completion *cp)
 		waiter->stat = TASK_READY;
 }
 
-int wait_for_complete(struct Completion *cp)
+int wait_for_completion(struct Completion *cp)
 {
 	int retv = 0, status;
 	struct Task_Info *me, *waiter;

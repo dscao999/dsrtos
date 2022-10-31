@@ -97,7 +97,7 @@ static int copy_cmd(char *cmd, const char *rawstr, int len)
 
 	dst = cmd;
 	src = rawstr;
-	while (src < rawstr + len) {
+	while (src < rawstr + len && *src != '\r') {
 		switch(*src) {
 			case '\b':
 				dst -= 2;
@@ -119,24 +119,39 @@ static int copy_cmd(char *cmd, const char *rawstr, int len)
 }
 
 static char conin[256], cmd[256];
+static struct Completion uart0cp;
+
+void uart0_trigger(void)
+{
+	complete(&uart0cp);
+}
+
 void * uart0_task(void *param)
 {
-	int msgpos, len, num_tasks, i;
+	int len, num_tasks, i, retv, remlen;
 	const char *arg;
 	struct Task_Info *task, *tasks[8];
 
 	klog("Idle Task Entered\n");
-	msgpos = 0;
+	completion_init(&uart0cp);
+
+	remlen = 0;
 	do {
-		if (msgpos >= sizeof(conin) - 1)
-			msgpos = 0;
-		len = console_getstr(conin+msgpos, sizeof(conin) - msgpos);
-		if (len == 0)
-			continue;
-		msgpos += len;
-		if (memchr(conin, msgpos, '\r') == -1)
-			continue;
-		len = copy_cmd(cmd, conin, msgpos);
+		retv = wait_for_completion(&uart0cp);
+		if (retv != 0) {
+			klog("Completion %x occupied: %x\n", (uint32_t)&uart0cp, retv);
+			death_flash();
+		}
+		completion_init(&uart0cp);
+		len = console_getstr(conin+remlen, sizeof(conin) - remlen);
+		len += remlen;
+		i = memchr(conin, len, '\r');
+		if (len == 0 || i == -1) {
+			klog("assertion failure. Compeletion not functioning properly\n");
+			death_flash();
+		}
+		remlen = len - (i + 1);
+		len = copy_cmd(cmd, conin, i + 1);
 		cmd[len] = 0;
 		if (memcmp(cmd, "tdel ", 5) == 0) {
 			arg = cmd + 5;
@@ -163,7 +178,6 @@ void * uart0_task(void *param)
 			task = (struct Task_Info *)hexstr2num(arg, len - 6);
 			task_resume(task);
 		}
-		msgpos = 0;
 	} while (errno == 0);
 	death_flash();
 	return NULL;
