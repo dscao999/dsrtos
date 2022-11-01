@@ -58,6 +58,7 @@ void __attribute__((naked)) kernel_start(void)
 	task->acc_ticks = 0;
 	task->time_slice = 0;
 	task->timer = NULL;
+	task->cp = NULL;
 	switch_stack(mstack, pstack);
 	/* old stack switched, no local variable usable */
 	sched_yield();

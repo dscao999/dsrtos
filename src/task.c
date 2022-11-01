@@ -469,6 +469,7 @@ int create_delay_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	task = setup_new_task(slot, prival, task_entry, param);
 	task->stat = TASK_SLEEP;
 	task->timer = timer;
+	task->cp = NULL;
 	timer->task = task;
 	timer->eticks = ticks;
 	*handle = task;
