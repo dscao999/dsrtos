@@ -361,21 +361,36 @@ int task_list(struct Task_Info *tasks[], int num)
 	return seq;
 }
 
-int task_del(struct Task_Info *task)
+static int task_mutable(struct Task_Info *task)
 {
-	struct Task_Info *itask;
-	int retv;
+	struct Task_Info *idle_task, *me;
+	int retv = 0;
 
-	retv = 0;
-	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
-	if (task == itask) {
-		klog("idle task: %x is reserved. Cannot be deleted\n", (uint32_t)itask);
-		return -(MODULE + ETRESVD);
-	}
 	if (!task_valid(task)) {
 		retv = -(MODULE + ENOTASK);
 		klog("No such task: %x\n", (uint32_t)task);
-	} else {
+		return retv;
+	}
+	idle_task = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
+	if (task == idle_task) {
+		klog("idle task: %x is reserved. Cannot be manipulated\n",
+				(uint32_t)task);
+		return -(MODULE + ETRESVD);
+	}
+	me = current_task();
+	if (task == me) {
+		klog("Cannot manipulate myself: %x\n", (uint32_t)me);
+		return -(MODULE + EINVAL);
+	}
+	return 0;
+}
+
+int task_del(struct Task_Info *task)
+{
+	int retv;
+
+	retv = task_mutable(task);
+	if (retv == 0) {
 		task->stat = TASK_FREE;
 		klog("Task: %x deleted\n", (uint32_t)task);
 	}
@@ -385,19 +400,10 @@ int task_del(struct Task_Info *task)
 int task_suspend(struct Task_Info *task)
 {
 	int retv = 0;
-	struct Task_Info *itask;
 
-	itask = (struct Task_Info *)(pstacks + MAX_NUM_TASKS - 1);
-	if (task == itask) {
-		klog("idle task: %x is reserved. Cannot be suspended\n", (uint32_t)itask);
-		retv = -(MODULE + ETRESVD);
-		goto exit_10;
-	}
-	if (!task_valid(task)) {
-		klog("No such task: %x\n", (uint32_t)task);
-		retv = -(MODULE + ENOTASK);
-		goto exit_10;
-	}
+	retv = task_mutable(task);
+	if (retv != 0)
+		return retv;
 	if (task->stat == TASK_SUSPEND)
 		goto exit_10;
 	if (task->stat == TASK_WEVENT) {
