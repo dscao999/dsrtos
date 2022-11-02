@@ -97,6 +97,16 @@ static inline void wait_interrupt(void)
 	asm volatile ("wfi");
 }
 
+static inline void wait_event(void)
+{
+	asm volatile ("wfe");
+}
+
+static inline void send_event(void)
+{
+	asm volatile ("sev");
+}
+
 static inline void start_systick(void)
 {
 	volatile uint32_t *st_ctrl;

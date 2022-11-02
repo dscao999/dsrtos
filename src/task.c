@@ -490,6 +490,7 @@ void spin_lock(volatile uint32_t *lock)
 			if (waiter->cpri < holder->cpri)
 				holder->cpri = waiter->cpri;
 		}
+		wait_event();
 		status = try_lock(lock, (uint32_t)waiter);
 	}
 }

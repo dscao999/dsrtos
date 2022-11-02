@@ -68,6 +68,7 @@ static inline void un_lock(volatile uint32_t *lock)
 	*lock = 0;
 	asm volatile ("dmb");
 	me->cpri = me->bpri;
+	send_event();
 }
 
 void task_slot_init(void);
