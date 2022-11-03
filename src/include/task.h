@@ -15,6 +15,18 @@ enum KTIMER_STATE {TIMER_FREE = 0, TIMER_STOP = 1, TIMER_ARMED = 3};
 
 struct Task_Timer;
 struct Completion;
+struct Task_Info;
+
+struct Task_Timer {
+	struct Task_Info *task;
+	int eticks;
+	volatile enum KTIMER_STATE stat;
+};
+
+struct Completion {
+	volatile uint32_t done;
+	struct Task_Info *waiter;
+};
 
 struct Task_Info {
 	volatile uint32_t lock;
@@ -27,17 +39,6 @@ struct Task_Info {
 	enum TASK_STATE last_stat;
 	enum TASK_PRIORITY cpri, bpri;
 	uint8_t time_slice;
-};
-
-struct Task_Timer {
-	struct Task_Info *task;
-	int eticks;
-	volatile enum KTIMER_STATE stat;
-};
-
-struct Completion {
-	volatile uint32_t done;
-	struct Task_Info *waiter;
 };
 
 static inline void completion_init(struct Completion *cp)
