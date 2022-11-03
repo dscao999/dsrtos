@@ -78,14 +78,14 @@ static struct Task_Info * setup_new_task(int slot, enum TASK_PRIORITY prival,
 	((struct Intr_Context *)frame)->lr = (uint32_t)task_reaper;
 	frame = ((char *)frame) - sizeof(struct Reg_Context);
 	reg_context_setup(frame);
+	task->lock = 0;
 	task->psp = frame;
 	task->bpri = prival;
 	task->cpri = prival;
 	task->acc_ticks = 0;
 	task->time_slice = 0;
 	task->timer = NULL;
-	asm volatile ("dmb");
-	task->stat = TASK_STOP;
+	task->cp = NULL;
 	return task;
 }
 
@@ -469,10 +469,10 @@ int create_delay_task(struct Task_Info **handle, enum TASK_PRIORITY prival,
 	task = setup_new_task(slot, prival, task_entry, param);
 	task->stat = TASK_SLEEP;
 	task->timer = timer;
-	task->cp = NULL;
 	timer->task = task;
-	timer->eticks = ticks;
+	timer->eticks = ticks == 0? 1 : ticks;
 	*handle = task;
+	asm volatile ("dmb");
 	timer->stat = TIMER_ARMED;
 	return retv;
 }
