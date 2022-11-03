@@ -314,8 +314,8 @@ void __attribute__((naked, noreturn)) task_reaper(void)
 	asm volatile ("str r0, [%0]"::"r"(&task->retv));
 	wake = complete(&task->exited);
 	if (wake == 0) {
-		klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
-				(uint32_t)task, task->retv, task->acc_ticks);
+		klog("Exited with value: %x, used sys ticks: %d\n",
+				task->retv, task->acc_ticks);
 		sched_yield_specific(TASK_FREE);
 	} else {
 		task->cpri = PRIO_MAXLOW;
@@ -347,9 +347,9 @@ void task_info(const struct Task_Info *task)
 		klog("No such task: %x\n", (uint32_t)task);
 		return;
 	}
-	klog("State: %d, Current Priority: %d, Base Priority: %d, Ticks: %d\n",
-		       (int)task->stat, (int)task->cpri, (int)task->bpri,
-		       task->acc_ticks);
+	klog("{%x} State: %d, Current Priority: %d, Base Priority: %d, " \
+			"Ticks: %d\n", (uint32_t)task, (int)task->stat,
+			(int)task->cpri, (int)task->bpri, task->acc_ticks);
 
 }
 
