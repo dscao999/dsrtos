@@ -189,6 +189,7 @@ static void task_switch_isr(struct Reg_Context *frame, enum TASK_STATE nxt_stat)
 static inline void setup_timer_isr(struct Task_Timer *timer)
 {
 	timer->task->stat = TASK_SLEEP;
+	asm volatile ("dmb");
 	timer->stat = TIMER_ARMED;
 }
 
