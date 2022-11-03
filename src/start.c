@@ -133,7 +133,6 @@ void * uart0_task(void *param)
 	const char *arg;
 	struct Task_Info *task, *tasks[8];
 
-	klog("Idle Task Entered\n");
 	completion_init(&uart0cp);
 
 	remlen = 0;
