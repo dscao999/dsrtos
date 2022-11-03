@@ -33,6 +33,7 @@ struct Task_Info {
 	void *psp;
 	struct Task_Timer *timer;
 	struct Completion *cp;
+	struct Completion exited;
 	uint32_t acc_ticks;
 	uint32_t retv;
 	volatile enum TASK_STATE stat;
@@ -90,14 +91,26 @@ static inline void sched_yield(void)
 	sched_yield_specific(TASK_READY);
 }
 
+int task_valid(const struct Task_Info *task);
 void task_info(const struct Task_Info *task);
 int task_list(struct Task_Info *tasks[], int num);
 int task_del(struct Task_Info *task);
 int task_suspend(struct Task_Info *task);
 int task_resume(struct Task_Info *task);
 
-void complete(struct Completion *cp);
+int complete(struct Completion *cp);
 int wait_for_completion(struct Completion *cp);
+
+static inline int task_exited(struct Task_Info *task)
+{
+	int retv = -1;
+
+	if (task_valid(task))
+		retv = task->exited.done;
+	return retv;
+}
+
+int wait_task(struct Task_Info *task, void **extval);
 
 void __attribute__((naked, noreturn)) task_reaper(void);
 

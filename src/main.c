@@ -36,11 +36,26 @@ void * timed_hello(void *param)
 	return (void *)0xceed;
 }
 
+struct Delay_Mesg {
+	char *mesg;
+	struct Task_Info *wait_for;
+} dmesg;
+
 void * delayed_output(void *param)
 {
-	char *mesg = param;
+	struct Delay_Mesg *mesg = param;
+	void *retval;
+	int retv;
 
-	klog("%s\n", mesg);
+	klog("%s. Waiting for task %x\n", mesg->mesg, (uint32_t)mesg->wait_for);
+	retv = wait_task(mesg->wait_for, &retval);
+	if (retv == 1)
+		klog("Task %x exited with %x\n", (uint32_t)mesg->wait_for,
+				retval);
+	else if (retv < 0)
+		klog("Wait for task %x failed\n", (uint32_t)mesg->wait_for);
+	else
+		klog("Task %x already exited\n", (uint32_t)mesg->wait_for);
 	return (void *)0xabcd;
 }
 
@@ -60,8 +75,10 @@ void main(void)
 	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);
+	dmesg.wait_for = task_handle;
+	dmesg.mesg = "It's wonderful";
 	retv = create_delay_task(&task_handle, PRIO_TOP, delayed_output,
-			"It's wonderful", 19000);
+			&dmesg, 19000);
 	if (unlikely(retv < 0))
 		death_flash();
 	klog("New Task Created: %x\n", (uint32_t)task_handle);

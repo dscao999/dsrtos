@@ -86,6 +86,7 @@ static struct Task_Info * setup_new_task(int slot, enum TASK_PRIORITY prival,
 	task->time_slice = 0;
 	task->timer = NULL;
 	task->cp = NULL;
+	completion_init(&task->exited);
 	return task;
 }
 
@@ -307,18 +308,25 @@ void mdelay(uint32_t msec)
 void __attribute__((naked, noreturn)) task_reaper(void)
 {
 	struct Task_Info *task;
+	int wake;
 
 	task = current_task();
 	asm volatile ("str r0, [%0]"::"r"(&task->retv));
-	klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
-			(uint32_t)task, task->retv, task->acc_ticks);
-	sched_yield_specific(TASK_FREE);
+	wake = complete(&task->exited);
+	if (wake == 0) {
+		klog("Task: %x ended. Return value: %x, Used sys ticks: %d\n",
+				(uint32_t)task, task->retv, task->acc_ticks);
+		sched_yield_specific(TASK_FREE);
+	} else {
+		task->cpri = PRIO_MAXLOW;
+		asm volatile ("dmb");
+	}
 	do
 		wait_interrupt();
 	while (1);
 }
 
-static inline int task_valid(const struct Task_Info *task)
+int task_valid(const struct Task_Info *task)
 {
 	int i, retv = 1;
 	struct proc_stack *pstack;
@@ -392,7 +400,8 @@ int task_del(struct Task_Info *task)
 
 	retv = task_mutable(task);
 	if (retv == 0) {
-		task->stat = TASK_FREE;
+		if (complete(&task->exited) == 0)
+			task->stat = TASK_FREE;
 		klog("Task: %x deleted\n", (uint32_t)task);
 	}
 	return retv;
@@ -496,7 +505,7 @@ void spin_lock(volatile uint32_t *lock)
 	}
 }
 
-void complete(struct Completion *cp)
+int complete(struct Completion *cp)
 {
 	int status;
 	uint32_t mark;
@@ -511,10 +520,12 @@ void complete(struct Completion *cp)
 		status = try_compswap((uint32_t *)&cp->waiter,
 				(uint32_t *)&waiter, mark);
 	while (status == 1);
-	if (!task_valid(waiter))
-		return;
-	if (waiter->cp == cp && waiter->stat == TASK_WEVENT)
+	if (task_valid(waiter) && waiter->cp == cp &&
+			waiter->stat == TASK_WEVENT) {
 		waiter->stat = TASK_READY;
+		status = 1;
+	}
+	return status;
 }
 
 int wait_for_completion(struct Completion *cp)
@@ -540,6 +551,7 @@ int wait_for_completion(struct Completion *cp)
 	} else {
 			asm volatile (  "mov r0, %0\n"		\
 					"\tsvc #2\n"::"r"(me));
+			retv = 1;
 	}
 	me->cp = NULL;
 	return retv;
@@ -554,6 +566,27 @@ static int wait_event_isr(struct Task_Info *waiter)
 	if (waiter->cp->done != 1)
 		waiter->stat = TASK_WEVENT;
 	enable_interrupt();
+	return retv;
+}
+
+int wait_task(struct Task_Info *task, void **extval)
+{
+	int retv;
+
+	*extval = NULL;
+	retv = 0;
+	if (unlikely(!task_valid(task)))
+		return -(MODULE + ENOTASK);
+	if (unlikely(current_task() == task)) {
+		klog("Cannot wait for myself %x\n", (uint32_t)task);
+		return -(MODULE + EINVAL);
+	}
+	retv = wait_for_completion(&task->exited);
+	if (retv == 1) {
+		*extval = (void *)task->retv;
+		asm volatile ("dmb");
+		task->stat = TASK_FREE;
+	}
 	return retv;
 }
 

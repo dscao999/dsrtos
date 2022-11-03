@@ -139,7 +139,7 @@ void * uart0_task(void *param)
 	remlen = 0;
 	do {
 		retv = wait_for_completion(&uart0cp);
-		if (retv != 0) {
+		if (retv < 0) {
 			klog("Completion %x occupied: %x\n", (uint32_t)&uart0cp, retv);
 			death_flash();
 		}
